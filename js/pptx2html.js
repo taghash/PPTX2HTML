@@ -1,38 +1,32 @@
 $(document).ready(function() {
 
 	if (window.Worker) {
-		
+		var worker;
 		var $result = $("#result");
 		var isDone = false;
-		
-		$("#uploadBtn").on("change", function(evt) {
 			
-			isDone = false;
-			
-			$result.html("");
-			$("#load-progress").text("0%").attr("aria-valuenow", 0).css("width", "0%");
-			$("#result_block").removeClass("hidden").addClass("show");
-			
-			var fileName = evt.target.files[0];
-			
-			// Read the file
+		$result.html("");
+		$("#result_block").removeClass("hidden").addClass("show");
+
+		// Read the file
+
+		var loadFile=function(url,callback){
+			JSZipUtils.getBinaryContent(url,callback);
+		}
+
+		loadFile("Sample_12.pptx",function(err,content){
+			var blob  = new Blob([content]);
 			var reader = new FileReader();
 			reader.onload = (function(theFile) {
 				return function(e) {
 					
 					// Web Worker
-					var worker = new Worker('./js/worker.js');
+					worker = new Worker('./js/worker.js');
 				
 					worker.addEventListener('message', function(e) {
-						
 						var msg = e.data;
 						
 						switch(msg.type) {
-							case "progress-update":
-								$("#load-progress").text(msg.data.toFixed(2) + "%")
-									.attr("aria-valuenow", msg.data.toFixed(2))
-									.css("width", msg.data.toFixed(2) + "%");
-								break;
 							case "slide":
 								$result.append(msg.data);
 								break;
@@ -54,26 +48,28 @@ $(document).ready(function() {
 								$result.append("<style>" + msg.data + "</style>");
 								break;
 							case "ExecutionTime":
-								$("#info_block").html("Execution Time: " + msg.data + " (ms)");
+								//var script = document.createElement('script');
+								//script.src = "js/numeric.js";
+								//script.async = true;
+								//document.head.appendChild(script);
 								isDone = true;
 								worker.postMessage({
 									"type": "getMsgQueue"
 								});
 								break;
 							case "WARN":
-								console.warn('Worker: ', msg.data);
+								//console.warn('Worker: ', msg.data);
 								break;
 							case "ERROR":
-								console.error('Worker: ', msg.data);
+								//console.error('Worker: ', msg.data);
 								$("#error_block").text(msg.data);
 								break;
 							case "DEBUG":
-								console.debug('Worker: ', msg.data);
+								//console.debug('Worker: ', msg.data);
 								break;
 							case "INFO":
 							default:
-								console.info('Worker: ', msg.data);
-								//$("#info_block").html($("#info_block").html() + "<br><br>" + msg.data);
+								//console.info('Worker: ', msg.data);
 						}
 						
 					}, false);
@@ -84,67 +80,10 @@ $(document).ready(function() {
 					});
 					
 				}
-			})(fileName);
-			reader.readAsArrayBuffer(fileName);
-			
+			})(blob);
+			reader.readAsArrayBuffer(blob);					
 		});
-		
-		$("#slideContentModel").on("show.bs.modal", function (e) {
-			if (!isDone) { return; }
-			$("#slideContentModel .modal-body textarea").text($result.html());
-		});
-		
-		$("#download-btn").click(function () {
-			if (!isDone) { return; }
-			var cssText = "";
-			$.get("css/pptx2html.css", function (data) {
-				cssText = data;
-			}).done(function () {
-				var headHtml = "<style>" + cssText + "</style>";
-				var bodyHtml = $result.html();
-				var html = "<!DOCTYPE html><html><head>" + headHtml + "</head><body>" + bodyHtml + "</body></html>";
-				var blob = new Blob([html], {type: "text/html;charset=utf-8"});
-				saveAs(blob, "slides_p.html");
-			});
-		});
-		
-		$("#download-reveal-btn").click(function () {
-			if (!isDone) { return; }
-			var cssText = "";
-			$.get("css/pptx2html.css", function (data) {
-				cssText = data;
-			}).done(function () {
-				var revealPrefix = 
-"<script type='text/javascript'>\
-Reveal.initialize({\
-	controls: true,\
-	progress: true,\
-	history: true,\
-	center: true,\
-	keyboard: true,\
-	slideNumber: true,\
-	\
-	theme: Reveal.getQueryHash().theme,\
-	transition: Reveal.getQueryHash().transition || 'default',\
-	\
-	dependencies: [\
-		{ src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },\
-		{ src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },\
-		{ src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },\
-		{ src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },\
-		{ src: 'plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },\
-		{ src: 'plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } }\
-	]\
-});\
-</script>";
-				var headHtml = "<style>" + cssText + "</style>";
-				var bodyHtml = "<div id='slides' class='slides'>" + $result.html() + "</div>";
-				var html = revealPrefix + headHtml + bodyHtml;
-				var blob = new Blob([html], {type: "text/html;charset=utf-8"});
-				saveAs(blob, "slides.html");
-			});
-		});
-		
+
 		$("#to-reveal-btn").click(function () {
 			if (localStorage) {
 				localStorage.setItem("slides", LZString.compressToUTF16($result.html()));
@@ -153,13 +92,24 @@ Reveal.initialize({\
 				alert("Browser don't support Web Storage!");
 			}
 		});
+		var stopWorker = setInterval(function(){
+			if(isDone){
+				worker.terminate();
+				worker = undefined;
+				//console.log("worker terminated");
+				clearInterval(stopWorker);
+				setNumericBullets($(".block"));
+				setNumericBullets($("table td"));
+			}
+		}, 500);
+
 		
 	} else {
 		
 		alert("Browser don't support Web Worker!");
 		
 	}
-	
+
 });
 
 function processMsgQueue(queue) {
@@ -234,4 +184,168 @@ function processSingleMsg(d) {
 		
 	}
 	
+}
+
+function setNumericBullets(elem){
+	var prgrphs_arry = elem;
+	for(var i=0; i< prgrphs_arry.length; i++){
+		var buSpan = $(prgrphs_arry[i]).find('.numeric-bullet-style');
+		if(buSpan.length > 0){
+			//console.log("DIV-"+i+":");
+			var prevBultTyp = "";
+			var prevBultLvl = "";
+			var buletIndex = 0;
+			var tmpArry = new Array();
+			var tmpArryIndx = 0;
+			var buletTypSrry = new Array();
+			for(var j=0; j< buSpan.length; j++){
+				var bult_typ = $(buSpan[j]).data("bulltname");
+				var bult_lvl = $(buSpan[j]).data("bulltlvl");
+				//console.log(j+" - "+bult_typ+" lvl: "+bult_lvl );
+				if(buletIndex==0){
+					prevBultTyp = bult_typ;
+					prevBultLvl = bult_lvl;
+					tmpArry[tmpArryIndx] = buletIndex;
+					buletTypSrry[tmpArryIndx] = bult_typ;
+					buletIndex++;
+				}else{
+					if(bult_typ == prevBultTyp && bult_lvl == prevBultLvl){
+						prevBultTyp = bult_typ;
+						prevBultLvl = bult_lvl;
+						buletIndex++;
+						tmpArry[tmpArryIndx] = buletIndex;
+						buletTypSrry[tmpArryIndx] = bult_typ;
+					}else if(bult_typ != prevBultTyp && bult_lvl == prevBultLvl){
+						prevBultTyp = bult_typ;
+						prevBultLvl = bult_lvl;
+						tmpArryIndx++;
+						tmpArry[tmpArryIndx] = buletIndex;
+						buletTypSrry[tmpArryIndx] = bult_typ;
+						buletIndex = 1;
+					}else if(bult_typ != prevBultTyp && Number(bult_lvl) > Number(prevBultLvl)){
+						prevBultTyp = bult_typ;
+						prevBultLvl = bult_lvl;
+						tmpArryIndx++;
+						tmpArry[tmpArryIndx] = buletIndex;
+						buletTypSrry[tmpArryIndx] = bult_typ;
+						buletIndex = 1;
+					}else if(bult_typ != prevBultTyp && Number(bult_lvl) < Number(prevBultLvl)){
+						prevBultTyp = bult_typ;
+						prevBultLvl = bult_lvl;
+						tmpArryIndx--;
+						buletIndex = tmpArry[tmpArryIndx]+1;
+					}
+				}
+				//console.log(buletTypSrry[tmpArryIndx]+" - "+buletIndex);
+				var numIdx = getNumTypeNum(buletTypSrry[tmpArryIndx],buletIndex);
+				$(buSpan[j]).html(numIdx);
+			}
+		}
+	}
+}
+function getNumTypeNum(numTyp,num){
+	var rtrnNum = "";
+	switch(numTyp){
+		case "arabicPeriod":
+			rtrnNum = num + ". ";
+			break;
+		case "arabicParenR":
+			rtrnNum = num + ") ";
+			break;					
+		case "alphaLcParenR":
+			rtrnNum = alphaNumeric(num,"lowerCase") + ") ";
+			break;
+		case "alphaLcPeriod":
+			rtrnNum = alphaNumeric(num,"lowerCase") + ". ";
+			break;
+					
+		case "alphaUcParenR":
+			rtrnNum = alphaNumeric(num,"upperCase") + ") ";
+			break;
+		case "alphaUcPeriod":
+			rtrnNum = alphaNumeric(num,"upperCase") + ". ";
+			break;
+
+		case "romanUcPeriod":
+			rtrnNum = romanize(num) + ". ";
+			break;		
+		case "romanLcParenR":
+			rtrnNum = romanize(num) + ") ";
+			break;
+		case "hebrew2Minus":
+			rtrnNum = hebrew2Minus.format(num) + "-";
+			break;
+		default:
+			rtrnNum = num;
+	}
+	return rtrnNum;
+}
+function romanize (num) {
+    if (!+num)
+        return false;
+    var digits = String(+num).split(""),
+        key = ["","C","CC","CCC","CD","D","DC","DCC","DCCC","CM",
+               "","X","XX","XXX","XL","L","LX","LXX","LXXX","XC",
+               "","I","II","III","IV","V","VI","VII","VIII","IX"],
+        roman = "",
+        i = 3;
+    while (i--)
+        roman = (key[+digits.pop() + (i * 10)] || "") + roman;
+    return Array(+digits.join("") + 1).join("M") + roman;
+}
+var hebrew2Minus = archaicNumbers([
+				[1000,''],
+				[400,'ת'],
+				[300,'ש'],
+				[200,'ר'],
+				[100,'ק'],
+				[90,'צ'],
+				[80,'פ'],
+				[70,'ע'],
+				[60,'ס'],
+				[50,'נ'],
+				[40,'מ'],
+				[30,'ל'],
+				[20,'כ'],
+				[10,'י'],
+				[9,'ט'],
+				[8,'ח'],
+				[7,'ז'],
+				[6,'ו'],
+				[5,'ה'],
+				[4,'ד'],
+				[3,'ג'],
+				[2,'ב'],
+				[1,'א'],
+				[/יה/, 'ט״ו'],
+				[/יו/, 'ט״ז'],
+				[/([א-ת])([א-ת])$/, '$1״$2'], 
+				[/^([א-ת])$/, "$1׳"] 
+]); 
+function archaicNumbers(arr){
+	var arrParse = arr.slice().sort(function (a,b) {return b[1].length - a[1].length});
+	return {
+		format: function(n){
+			var ret = '';
+			jQuery.each(arr, function(){
+				var num = this[0];
+				if (parseInt(num) > 0){
+					for (; n >= num; n -= num) ret += this[1];
+				}else{
+					ret = ret.replace(num, this[1]);
+				}
+			});
+			return ret; 
+		}
+	}
+}
+function alphaNumeric(num,upperLower){
+	num = Number(num)-1;
+	var aNum = "";
+	if(upperLower=="upperCase"){
+		aNum = (( (num/26>=1)? String.fromCharCode(num/26+64):'') + String.fromCharCode(num%26+65)).toUpperCase();
+	}else if(upperLower=="lowerCase"){
+		aNum = (( (num/26>=1)? String.fromCharCode(num/26+64):'') + String.fromCharCode(num%26+65)).toLowerCase();
+	}
+	return aNum;
 }

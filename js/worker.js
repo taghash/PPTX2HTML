@@ -22,7 +22,6 @@ var otherFontSize = 16;
 var styleTable = {};
 
 onmessage = function(e) {
-    
     switch (e.data.type) {
         case "processPPTX":
             processPPTX(e.data.data);
@@ -436,14 +435,20 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
     
     var result = "";
     var shapType = getTextByPathList(node, ["p:spPr", "a:prstGeom", "attrs", "prst"]);
+
+    //custGeom - Amir
+    var custShapType = getTextByPathList(node, ["p:spPr", "a:custGeom"]);
     
     var isFlipV = false;
     if ( getTextByPathList(slideXfrmNode, ["attrs", "flipV"]) === "1" || getTextByPathList(slideXfrmNode, ["attrs", "flipH"]) === "1") {
         isFlipV = true;
     }
-    
-    if (shapType !== undefined) {
-        
+    /////////////////////////Amir////////////////////////
+    //rotate
+    var rotate = angleToDegrees(getTextByPathList(slideXfrmNode, ["attrs", "rot"]));
+    //console.log("rotate: "+rotate);
+    //////////////////////////////////////////////////
+    if (shapType !== undefined || custShapType !== undefined) {
         var off = getTextByPathList(slideXfrmNode, ["a:off", "attrs"]);
         var x = parseInt(off["x"]) * 96 / 914400;
         var y = parseInt(off["y"]) * 96 / 914400;
@@ -452,11 +457,13 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
         var w = parseInt(ext["cx"]) * 96 / 914400;
         var h = parseInt(ext["cy"]) * 96 / 914400;
         
+
         result += "<svg class='drawing' _id='" + id + "' _idx='" + idx + "' _type='" + type + "' _name='" + name +
                 "' style='" + 
                     getPosition(slideXfrmNode, undefined, undefined) + 
                     getSize(slideXfrmNode, undefined, undefined) +
                     " z-index: " + order + ";" +
+                    "transform: rotate(" +rotate+ "deg);"+
                 "'>";
         
         // Fill Color
@@ -470,9 +477,12 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
         // type: none, triangle, stealth, diamond, oval, arrow
         if ( (headEndNodeAttrs !== undefined && (headEndNodeAttrs["type"] === "triangle" || headEndNodeAttrs["type"] === "arrow")) || 
              (tailEndNodeAttrs !== undefined && (tailEndNodeAttrs["type"] === "triangle" || tailEndNodeAttrs["type"] === "arrow")) ) {
-            var triangleMarker = "<defs><marker id=\"markerTriangle\" viewBox=\"0 0 10 10\" refX=\"1\" refY=\"5\" markerWidth=\"5\" markerHeight=\"5\" orient=\"auto-start-reverse\" markerUnits=\"strokeWidth\"><path d=\"M 0 0 L 10 5 L 0 10 z\" /></marker></defs>";
+            var triangleMarker = "<defs><marker id=\"markerTriangle\" viewBox=\"0 0 10 10\" refX=\"1\" refY=\"5\" markerWidth=\"5\" markerHeight=\"5\" stroke='" + border.color + "' fill='" + border.color + 
+                            "' orient=\"auto-start-reverse\" markerUnits=\"strokeWidth\"><path d=\"M 0 0 L 10 5 L 0 10 z\" /></marker></defs>";
             result += triangleMarker;
         }
+    }
+    if (shapType !== undefined && custShapType === undefined) {
         
         switch (shapType) {
             case "accentBorderCallout1":
@@ -515,10 +525,7 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
             case "corner":
             case "cornerTabs":
             case "cube":
-            case "decagon":
             case "diagStripe":
-            case "diamond":
-            case "dodecagon":
             case "donut":
             case "doubleWave":
             case "downArrowCallout":
@@ -560,13 +567,10 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
             case "gear9":
             case "halfFrame":
             case "heart":
-            case "heptagon":
-            case "hexagon":
             case "homePlate":
             case "horizontalScroll":
             case "irregularSeal1":
             case "irregularSeal2":
-            case "leftArrow":
             case "leftArrowCallout":
             case "leftBrace":
             case "leftBracket":
@@ -584,14 +588,10 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
             case "moon":
             case "nonIsoscelesTrapezoid":
             case "noSmoking":
-            case "octagon":
-            case "parallelogram":
-            case "pentagon":
             case "pie":
             case "pieWedge":
             case "plaque":
             case "plaqueTabs":
-            case "plus":
             case "quadArrowCallout":
             case "rect":
             case "ribbon":
@@ -602,7 +602,6 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
             case "round1Rect":
             case "round2DiagRect":
             case "round2SameRect":
-            case "rtTriangle":
             case "smileyFace":
             case "snip1Rect":
             case "snip2DiagRect":
@@ -621,7 +620,6 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
             case "star8":
             case "sun":
             case "teardrop":
-            case "trapezoid":
             case "upArrowCallout":
             case "upDownArrowCallout":
             case "verticalScroll":
@@ -658,9 +656,146 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                 }
                 result += "/>";
                 break;
+            case "rtTriangle":
+                result += " <polygon points='0 0,0 " + h + ","+w+" "+h+"' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
+                break;
+            case "triangle":
+                var shapAdjst = getTextByPathList(node, ["p:spPr", "a:prstGeom","a:avLst","a:gd", "attrs", "fmla"]);
+                var shapAdjst_val = 0.5;
+                if(shapAdjst !== undefined){
+                    shapAdjst_val = parseInt(shapAdjst.substr(4)) * 96 / 9144000;
+                    //console.log("w: "+w+"\nh: "+h+"\nshapAdjst: "+shapAdjst+"\nshapAdjst_val: "+shapAdjst_val);
+                }
+                result += " <polygon points='"+(w*shapAdjst_val)+" 0,0 " + h + ","+w+" "+h+"' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";            
+                break;
+            case "diamond":
+                result += " <polygon points='" + (w/2) + " 0,0 " + (h/2) + "," + (w/2)+" "+h+"," + w + " " + (h/2) +"' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
+                break;
+            case "trapezoid":
+                var shapAdjst = getTextByPathList(node, ["p:spPr", "a:prstGeom","a:avLst","a:gd", "attrs", "fmla"]);
+                var adjst_val = 0.25;
+                var max_adj_const = 0.7407;
+                if(shapAdjst !== undefined){
+                    var adjst = parseInt(shapAdjst.substr(4)) * 96 / 9144000;
+                    adjst_val = (adjst*0.5)/max_adj_const;
+                   // console.log("w: "+w+"\nh: "+h+"\nshapAdjst: "+shapAdjst+"\nadjst_val: "+adjst_val);
+                }
+                result += " <polygon points='"+(w*adjst_val)+" 0,0 " + h + ","+w+" "+h+","+(1-adjst_val)*w+" 0' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";    
+                break;
+            case "parallelogram":
+                var shapAdjst = getTextByPathList(node, ["p:spPr", "a:prstGeom","a:avLst","a:gd", "attrs", "fmla"]);
+                var adjst_val = 0.25;
+                var max_adj_const;
+                if(w > h){
+                    max_adj_const = w/h;
+                }else{
+                    max_adj_const = h/w;
+                }
+                if(shapAdjst !== undefined){
+                    var adjst = parseInt(shapAdjst.substr(4)) /100000;
+                    adjst_val = adjst/max_adj_const;
+                   console.log("w: "+w+"\nh: "+h+"\nadjst: "+adjst_val+"\nmax_adj_const: "+max_adj_const);
+                }
+                result += " <polygon points='"+adjst_val*w+" 0,0 " + h + ","+(1-adjst_val)*w+" "+h+","+w+" 0' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";    
+                break;
+
+                break;
+            case "pentagon":
+                result += " <polygon points='" + (0.5*w) + " 0,0 " + (0.375*h) + "," + (0.15*w)+" "+h+"," + 0.85*w + " " + h + "," + w + " " + 0.375*h + "' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
+                break;
+            case "hexagon":
+                var shapAdjst_ary = getTextByPathList(node, ["p:spPr", "a:prstGeom","a:avLst","a:gd"]);
+                var shapAdjst = undefined;
+                for(var i=0; i<shapAdjst_ary.length; i++){
+                    if( getTextByPathList(shapAdjst_ary[i],["attrs","name"]) =="adj"){
+                         shapAdjst = getTextByPathList(shapAdjst_ary[i],["attrs","fmla"]);
+                    }
+                }
+                var adjst_val = 0.25;
+                var max_adj_const = 0.62211;
+               
+                if(shapAdjst !== undefined){
+                    var adjst = parseInt(shapAdjst.substr(4)) * 96 / 9144000;
+                    adjst_val = (adjst*0.5)/max_adj_const;
+                    //console.log("w: "+w+"\nh: "+h+"\nadjst: "+adjst_val);
+                }
+                result += " <polygon points='"+(w*adjst_val)+" 0,0 " + (h/2) + ","+(w*adjst_val)+" "+h+","+(1-adjst_val)*w+" "+h+","+w+" "+(h/2)+","+(1-adjst_val)*w+" 0' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";    
+                 break;
+            case "heptagon":
+                result += " <polygon points='" + (0.5*w) + " 0,"+w/8+" " + h/4 + ",0 "+(5/8)*h+"," + w/4 + " " + h + "," + (3/4)*w + " " +h +","+
+                w+" "+(5/8)*h+","+(7/8)*w+" "+h/4+"' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
+                 break;
+            case "octagon":
+                var shapAdjst = getTextByPathList(node, ["p:spPr", "a:prstGeom","a:avLst","a:gd", "attrs", "fmla"]);
+                var adj1 = 0.25;
+                if(shapAdjst !== undefined){
+                    adj1 = parseInt(shapAdjst.substr(4)) /100000;
+                    
+                }
+                var adj2 = (1-adj1);
+                //console.log("adj1: "+adj1+"\nadj2: "+adj2);
+                result += " <polygon points='"+adj1*w+" 0,0 " + adj1*h + ",0 "+ adj2*h+","+adj1*w+" "+h+","+adj2*w+" "+h+","+
+                w+" "+adj2*h+","+w+" "+adj1*h+","+adj2*w+" 0' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";    
+
+                break;            
+            case "decagon":
+                result += " <polygon points='"+(3/8)*w+" 0,"+w/8+" " + h/8 + ",0 "+ h/2+","+w/8+" "+(7/8)*h+","+(3/8)*w+" "+h+","+
+                    (5/8)*w+" "+h+","+(7/8)*w+" "+(7/8)*h+","+w+" "+h/2+","+(7/8)*w+" "+h/8+","+(5/8)*w+" 0' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
+                break;
+            case "dodecagon":
+                result += " <polygon points='"+(3/8)*w+" 0,"+w/8+" " + h/8 + ",0 "+ (3/8)*h+ ",0 "+ (5/8)*h+","+w/8+" "+(7/8)*h+","+(3/8)*w+" "+h+","+
+                    (5/8)*w+" "+h+","+(7/8)*w+" "+(7/8)*h+","+w+" "+(5/8)*h+","+w+" "+(3/8)*h+","+(7/8)*w+" "+h/8+","+(5/8)*w+" 0' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
+                break;
+             case "bentConnector3":
+                var shapAdjst = getTextByPathList(node, ["p:spPr", "a:prstGeom","a:avLst","a:gd", "attrs", "fmla"]);
+                //console.log("isFlipV: "+String(isFlipV)+"\nshapAdjst: "+shapAdjst)
+                var shapAdjst_val = 0.5;
+                if(shapAdjst !== undefined){
+                    shapAdjst_val = parseInt(shapAdjst.substr(4)) /100000;
+                    //console.log("isFlipV: "+String(isFlipV)+"\nshapAdjst: "+shapAdjst+"\nshapAdjst_val: "+shapAdjst_val);
+                    if(isFlipV){
+                        result += " <polyline points='"+w+" 0," + ((1-shapAdjst_val)*w) + " 0,"+((1-shapAdjst_val)*w)+" "+h+",0 "+h+"' fill='transparent'" + 
+                            "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' "; 
+                    }else{
+                        result += " <polyline points='0 0,"+(shapAdjst_val)*w+" 0," + (shapAdjst_val)*w + " "+h+","+w+" "+h+"' fill='transparent'" + 
+                            "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' ";
+                    }
+                    if (headEndNodeAttrs !== undefined && (headEndNodeAttrs["type"] === "triangle" || headEndNodeAttrs["type"] === "arrow")) {
+                        result += "marker-start='url(#markerTriangle)' ";
+                    }
+                    if (tailEndNodeAttrs !== undefined && (tailEndNodeAttrs["type"] === "triangle" || tailEndNodeAttrs["type"] === "arrow")) {
+                        result += "marker-end='url(#markerTriangle)' ";
+                    }
+                    result += "/>";                        
+                }                
+                break;
+            case "plus":
+                var shapAdjst = getTextByPathList(node, ["p:spPr", "a:prstGeom","a:avLst","a:gd", "attrs", "fmla"]);
+                var adj1 = 0.25;
+                if(shapAdjst !== undefined){
+                    adj1 = parseInt(shapAdjst.substr(4)) /100000;
+                    
+                }
+                var adj2 = (1-adj1);
+                result += " <polygon points='"+adj1*w+" 0,"+adj1*w+" " + adj1*h + ",0 "+adj1*h+",0 "+adj2*h+","+
+                            adj1*w+" "+adj2*h+","+adj1*w+" "+h+","+adj2*w+" "+h+","+adj2*w+" "+adj2*h+","+w+" "+adj2*h+","+
+                            +w+" "+adj1*h+","+adj2*w+" "+adj1*h+","+adj2*w+" 0' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";    
+                 
+                break;
             case "line":
             case "straightConnector1":
-            case "bentConnector3":
             case "bentConnector4":
             case "bentConnector5":
             case "curvedConnector2":
@@ -683,16 +818,148 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                 result += "/>";
                 break;
             case "rightArrow":
-                result += "<defs><marker id=\"markerTriangle\" viewBox=\"0 0 10 10\" refX=\"1\" refY=\"5\" markerWidth=\"2.5\" markerHeight=\"2.5\" orient=\"auto-start-reverse\" markerUnits=\"strokeWidth\"><path d=\"M 0 0 L 10 5 L 0 10 z\" /></marker></defs>";
-                result += "<line x1='0' y1='" + (h/2) + "' x2='" + (w-15) + "' y2='" + (h/2) + "' stroke='" + border.color + 
-                                "' stroke-width='" + (h/2) + "' stroke-dasharray='" + border.strokeDasharray + "' ";
-                result += "marker-end='url(#markerTriangle)' />";
+                var shapAdjst_ary = getTextByPathList(node, ["p:spPr", "a:prstGeom","a:avLst","a:gd"]);
+                var sAdj1,sAdj1_val = 0.5;
+                var sAdj2,sAdj2_val = 0.5;
+                var max_sAdj2_const = w/h;
+                if(shapAdjst_ary !== undefined){
+                    for(var i=0; i<shapAdjst_ary.length; i++){
+                        var sAdj_name = getTextByPathList(shapAdjst_ary[i],["attrs","name"]);
+                        if(sAdj_name =="adj1"){
+                            sAdj1 = getTextByPathList(shapAdjst_ary[i],["attrs","fmla"]);
+                            sAdj1_val = 0.5-(parseInt(sAdj1.substr(4)) /200000);
+                        }else if(sAdj_name =="adj2"){
+                            sAdj2 = getTextByPathList(shapAdjst_ary[i],["attrs","fmla"]);
+                            var sAdj2_val2 = parseInt(sAdj2.substr(4)) /100000;
+                            sAdj2_val = 1 - ((sAdj2_val2)/max_sAdj2_const);
+                        }
+                    }
+                }
+               //console.log("w: "+w+"\nh: "+h+"\nsAdj1: "+sAdj1_val+"\nsAdj2: "+sAdj2_val);
+                
+                result += " <polygon points='"+w+" "+h/2+","+sAdj2_val*w+" 0," +sAdj2_val*w+" "+sAdj1_val*h+",0 "+sAdj1_val*h+
+                            ",0 "+(1-sAdj1_val)*h+","+sAdj2_val*w+" "+(1-sAdj1_val)*h+", "+sAdj2_val*w+" "+h+"' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";               
+                 break;
+            case "leftArrow":
+                var shapAdjst_ary = getTextByPathList(node, ["p:spPr", "a:prstGeom","a:avLst","a:gd"]);
+                var sAdj1,sAdj1_val = 0.5;
+                var sAdj2,sAdj2_val = 0.5;
+                var max_sAdj2_const = w/h;
+                if(shapAdjst_ary !== undefined){
+                    for(var i=0; i<shapAdjst_ary.length; i++){
+                        var sAdj_name = getTextByPathList(shapAdjst_ary[i],["attrs","name"]);
+                        if(sAdj_name =="adj1"){
+                            sAdj1 = getTextByPathList(shapAdjst_ary[i],["attrs","fmla"]);
+                            sAdj1_val = 0.5-(parseInt(sAdj1.substr(4)) /200000);
+                        }else if(sAdj_name =="adj2"){
+                            sAdj2 = getTextByPathList(shapAdjst_ary[i],["attrs","fmla"]);
+                            var sAdj2_val2 = parseInt(sAdj2.substr(4)) /100000;
+                            sAdj2_val = (sAdj2_val2)/max_sAdj2_const;
+                        }
+                    }
+                }
+                //console.log("w: "+w+"\nh: "+h+"\nsAdj1: "+sAdj1_val+"\nsAdj2: "+sAdj2_val);
+
+                result += " <polygon points='0 "+h/2+","+sAdj2_val*w+" "+h+"," +sAdj2_val*w+" "+(1-sAdj1_val)*h+","+w+" "+(1-sAdj1_val)*h+
+                            ","+w+" "+sAdj1_val*h+","+sAdj2_val*w+" "+sAdj1_val*h+", "+sAdj2_val*w+" 0' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
                 break;
             case "downArrow":
-                result += "<defs><marker id=\"markerTriangle\" viewBox=\"0 0 10 10\" refX=\"1\" refY=\"5\" markerWidth=\"2.5\" markerHeight=\"2.5\" orient=\"auto-start-reverse\" markerUnits=\"strokeWidth\"><path d=\"M 0 0 L 10 5 L 0 10 z\" /></marker></defs>";
-                result += "<line x1='" + (w/2) + "' y1='0' x2='" + (w/2) + "' y2='" + (h-15) + "' stroke='" + border.color + 
-                                "' stroke-width='" + (w/2) + "' stroke-dasharray='" + border.strokeDasharray + "' ";
-                result += "marker-end='url(#markerTriangle)' />";
+                var shapAdjst_ary = getTextByPathList(node, ["p:spPr", "a:prstGeom","a:avLst","a:gd"]);
+                var sAdj1,sAdj1_val = 0.5;
+                var sAdj2,sAdj2_val = 0.5;
+                var max_sAdj2_const = h/w;
+                if(shapAdjst_ary !== undefined){
+                    for(var i=0; i<shapAdjst_ary.length; i++){
+                        var sAdj_name = getTextByPathList(shapAdjst_ary[i],["attrs","name"]);
+                        if(sAdj_name =="adj1"){
+                            sAdj1 = getTextByPathList(shapAdjst_ary[i],["attrs","fmla"]);
+                            sAdj1_val = parseInt(sAdj1.substr(4)) /200000;
+                        }else if(sAdj_name =="adj2"){
+                            sAdj2 = getTextByPathList(shapAdjst_ary[i],["attrs","fmla"]);
+                            var sAdj2_val2 = parseInt(sAdj2.substr(4)) /100000;
+                            sAdj2_val = (sAdj2_val2)/max_sAdj2_const;
+                        }
+                    }
+                }
+               // console.log("w: "+w+"\nh: "+h+"\nsAdj1: "+sAdj1_val+"\nsAdj2: "+sAdj2_val);
+                
+                result += " <polygon points='"+(0.5-sAdj1_val)*w+" 0,"+(0.5-sAdj1_val)*w+" "+(1-sAdj2_val)*h+",0 " +(1-sAdj2_val)*h+","+(w/2)+" "+h+
+                            ","+w+" "+(1-sAdj2_val)*h+","+(0.5+sAdj1_val)*w+" "+(1-sAdj2_val)*h+", "+(0.5+sAdj1_val)*w+" 0' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";               
+                 break; 
+            case "upArrow":
+                var shapAdjst_ary = getTextByPathList(node, ["p:spPr", "a:prstGeom","a:avLst","a:gd"]);
+                var sAdj1,sAdj1_val = 0.5;
+                var sAdj2,sAdj2_val = 0.5;
+                var max_sAdj2_const = h/w;
+                if(shapAdjst_ary !== undefined){
+                    for(var i=0; i<shapAdjst_ary.length; i++){
+                        var sAdj_name = getTextByPathList(shapAdjst_ary[i],["attrs","name"]);
+                        if(sAdj_name =="adj1"){
+                            sAdj1 = getTextByPathList(shapAdjst_ary[i],["attrs","fmla"]);
+                            sAdj1_val = parseInt(sAdj1.substr(4)) /200000;
+                        }else if(sAdj_name =="adj2"){
+                            sAdj2 = getTextByPathList(shapAdjst_ary[i],["attrs","fmla"]);
+                            var sAdj2_val2 = parseInt(sAdj2.substr(4)) /100000;
+                            sAdj2_val = (sAdj2_val2)/max_sAdj2_const;
+                        }
+                    }
+                }
+                result += " <polygon points='"+(w/2)+" 0,0 "+sAdj2_val*h+"," + (0.5-sAdj1_val)*w + " "+sAdj2_val*h+","+(0.5-sAdj1_val)*w+" "+h+
+                            ","+(0.5+sAdj1_val)*w+" "+h+","+(0.5+sAdj1_val)*w+" "+sAdj2_val*h+", "+w+" "+sAdj2_val*h+"' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";               
+                 break;
+            case "leftRightArrow":
+                var shapAdjst_ary = getTextByPathList(node, ["p:spPr", "a:prstGeom","a:avLst","a:gd"]);
+                var sAdj1,sAdj1_val = 0.5;
+                var sAdj2,sAdj2_val = 0.5;
+                var max_sAdj2_const = w/h;
+                if(shapAdjst_ary !== undefined){
+                    for(var i=0; i<shapAdjst_ary.length; i++){
+                        var sAdj_name = getTextByPathList(shapAdjst_ary[i],["attrs","name"]);
+                        if(sAdj_name =="adj1"){
+                            sAdj1 = getTextByPathList(shapAdjst_ary[i],["attrs","fmla"]);
+                            sAdj1_val = 0.5-(parseInt(sAdj1.substr(4)) /200000);
+                        }else if(sAdj_name =="adj2"){
+                            sAdj2 = getTextByPathList(shapAdjst_ary[i],["attrs","fmla"]);
+                            var sAdj2_val2 = parseInt(sAdj2.substr(4)) /100000;
+                            sAdj2_val = (sAdj2_val2)/max_sAdj2_const;
+                        }
+                    }
+                }
+                //console.log("w: "+w+"\nh: "+h+"\nsAdj1: "+sAdj1_val+"\nsAdj2: "+sAdj2_val);
+
+                result += " <polygon points='0 "+h/2+","+sAdj2_val*w+" "+h+"," +sAdj2_val*w+" "+(1-sAdj1_val)*h+","+(1-sAdj2_val)*w+" "+(1-sAdj1_val)*h+
+                            ","+(1-sAdj2_val)*w+" "+h+","+w+" "+h/2+", "+(1-sAdj2_val)*w+" 0,"+(1-sAdj2_val)*w+" "+sAdj1_val*h+","+
+                            sAdj2_val*w+" "+sAdj1_val*h+","+sAdj2_val*w+" 0' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
+                break;
+            case "upDownArrow":
+                var shapAdjst_ary = getTextByPathList(node, ["p:spPr", "a:prstGeom","a:avLst","a:gd"]);
+                var sAdj1,sAdj1_val = 0.5;
+                var sAdj2,sAdj2_val = 0.5;
+                var max_sAdj2_const = h/w;
+                if(shapAdjst_ary !== undefined){
+                    for(var i=0; i<shapAdjst_ary.length; i++){
+                        var sAdj_name = getTextByPathList(shapAdjst_ary[i],["attrs","name"]);
+                        if(sAdj_name =="adj1"){
+                            sAdj1 = getTextByPathList(shapAdjst_ary[i],["attrs","fmla"]);
+                            sAdj1_val = 0.5-(parseInt(sAdj1.substr(4)) /200000);
+                        }else if(sAdj_name =="adj2"){
+                            sAdj2 = getTextByPathList(shapAdjst_ary[i],["attrs","fmla"]);
+                            var sAdj2_val2 = parseInt(sAdj2.substr(4)) /100000;
+                            sAdj2_val = (sAdj2_val2)/max_sAdj2_const;
+                        }
+                    }
+                }
+                //console.log("w: "+w+"\nh: "+h+"\nsAdj1: "+sAdj1_val+"\nsAdj2: "+sAdj2_val);
+
+                result += " <polygon points='"+w/2+" 0,0 "+sAdj2_val*h+"," +sAdj1_val*w+" "+sAdj2_val*h+","+sAdj1_val*w+" "+(1-sAdj2_val)*h+
+                            ",0 "+(1-sAdj2_val)*h+","+w/2+" "+h+", "+w+" "+(1-sAdj2_val)*h+","+(1-sAdj1_val)*w+" "+(1-sAdj2_val)*h+","+
+                            (1-sAdj1_val)*w+" "+sAdj2_val*h+","+w+" "+sAdj2_val*h+"' fill='" + fillColor + 
+                    "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
                 break;
             case "bentArrow":
             case "bentUpArrow":
@@ -700,7 +967,6 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
             case "quadArrow":
             case "circularArrow":
             case "swooshArrow":
-            case "leftRightArrow":
             case "leftRightUpArrow":
             case "leftUpArrow":
             case "leftCircularArrow":
@@ -709,12 +975,8 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
             case "curvedLeftArrow":
             case "curvedRightArrow":
             case "curvedUpArrow":
-            case "upDownArrow":
-            case "upArrow":
             case "uturnArrow":
             case "leftRightCircularArrow":
-                break;
-            case "triangle":
                 break;
             case undefined:
             default:
@@ -729,6 +991,7 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                     getPosition(slideXfrmNode, slideLayoutXfrmNode, slideMasterXfrmNode) + 
                     getSize(slideXfrmNode, slideLayoutXfrmNode, slideMasterXfrmNode) + 
                     " z-index: " + order + ";" +
+                     "transform: rotate(" +rotate+ "deg);"+
                 "'>";
         
         // TextBody
@@ -736,7 +999,131 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
             result += genTextBody(node["p:txBody"], slideLayoutSpNode, slideMasterSpNode, type, warpObj);
         }
         result += "</div>";
+    }else if(custShapType !== undefined){
+        //custGeom here - Amir ///////////////////////////////////////////////////////
+        //http://officeopenxml.com/drwSp-custGeom.php
+        var pathLstNode = getTextByPathList(custShapType, ["a:pathLst"]);
+        var pathNode = getTextByPathList(pathLstNode, ["a:path", "attrs"]);
+        var maxX = parseInt(pathNode["w"]) * 96 / 914400;
+        var maxY = parseInt(pathNode["h"]) * 96 / 914400;
+        console.log("w = "+w+"\nh = "+h+"\nmaxX = "+maxX +"\nmaxY = " + maxY);
+        //cheke if it is close shape
+        var closeNode = getTextByPathList(pathLstNode, ["a:path","a:close"]);
+        var startPoint = getTextByPathList(pathLstNode, ["a:path","a:moveTo","a:pt","attrs"]);
+        var spX = parseInt(startPoint["x"]) * 96 / 914400;
+        var spY = parseInt(startPoint["y"]) * 96 / 914400;
+        var d = "M"+spX+","+spY;
+        var pathNodes =  getTextByPathList(pathLstNode, ["a:path"]);
+        var lnToNodes = pathNodes["a:lnTo"];
+        var cubicBezToNodes = pathNodes["a:cubicBezTo"];
+        var sortblAry = [];
+        if(lnToNodes !== undefined){
+            Object.keys(lnToNodes).forEach(function(key) {
+                var lnToPtNode = lnToNodes[key]["a:pt"];
+                if(lnToPtNode !== undefined){
+                    Object.keys(lnToPtNode).forEach(function(key2) {
+                        var ptObj = {};
+                        var lnToNoPt = lnToPtNode[key2];
+                        var ptX = lnToNoPt["attrs","x"];
+                        var ptY = lnToNoPt["attrs","y"];
+                        var ptOrdr = lnToNoPt["attrs","order"];
+                        ptObj.type = "lnto";
+                        ptObj.order = ptOrdr;
+                        ptObj.x = ptX;
+                        ptObj.y = ptY;
+                        sortblAry.push(ptObj);
+                        //console.log(key2, lnToNoPt);
+                    
+                    });
+                }
+            });
+            
+        }
+        if(cubicBezToNodes !== undefined){
+            Object.keys(cubicBezToNodes).forEach(function(key) {
+                //console.log("cubicBezTo["+key+"]:");
+                var cubicBezToPtNodes = cubicBezToNodes[key]["a:pt"];
+                if(cubicBezToPtNodes !== undefined){
+                    Object.keys(cubicBezToPtNodes).forEach(function(key2) {
+                        //console.log("cubicBezTo["+key+"]pt["+key2+"]:");
+                        var cubBzPts = cubicBezToPtNodes[key2];
+                        Object.keys(cubBzPts).forEach(function(key3) {
+                            //console.log(key3, cubBzPts[key3]);
+                            var ptObj = {};
+                            var cubBzPt = cubBzPts[key3];
+                            var ptX = cubBzPt["attrs","x"];
+                            var ptY = cubBzPt["attrs","y"];
+                            var ptOrdr = cubBzPt["attrs","order"];
+                            ptObj.type = "cubicBezTo";
+                            ptObj.order = ptOrdr;
+                            ptObj.x = ptX;
+                            ptObj.y = ptY;
+                            sortblAry.push(ptObj);                            
+                        });
+                    });
+                }
+            });
+        }
+        var sortByOrder = sortblAry.slice(0);
+        sortByOrder.sort(function(a,b) {
+            return a.order - b.order;
+        });
+        //console.log(sortByOrder);
+        var k = 0;
+        while(k<sortByOrder.length){
+            if(sortByOrder[k].type=="lnto"){
+                var Lx = parseInt(sortByOrder[k].x) * 96 / 914400;
+                var Ly = parseInt(sortByOrder[k].y) * 96 / 914400;
+                d += "L" + Lx + "," + Ly;
+                k++;
+            }else{ //"cubicBezTo"
+                var Cx1 = parseInt(sortByOrder[k].x) * 96 / 914400;
+                var Cy1 = parseInt(sortByOrder[k].y) * 96 / 914400;
+                var Cx2 = parseInt(sortByOrder[k+1].x) * 96 / 914400;
+                var Cy2 = parseInt(sortByOrder[k+1].y) * 96 / 914400;
+                var Cx3 = parseInt(sortByOrder[k+2].x) * 96 / 914400;
+                var Cy3 = parseInt(sortByOrder[k+2].y) * 96 / 914400; 
+
+                d += "C" + Cx1 + "," + Cy1 +" "+ Cx2 + "," + Cy2 + " " + Cx3 + "," + Cy3;
+                k += 3 ; 
+            }
+        }
+        result += "<path d='" + d + "' fill='" + fillColor + 
+                "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' ";
+        if(closeNode !== undefined){
+            //console.log("Close shape");
+            result += "/>";
+        }else{
+            //console.log("Open shape");
+            //check and add "marker-start" and "marker-end"
+            if (headEndNodeAttrs !== undefined && (headEndNodeAttrs["type"] === "triangle" || headEndNodeAttrs["type"] === "arrow")) {
+                result += "marker-start='url(#markerTriangle)' ";
+            }
+            if (tailEndNodeAttrs !== undefined && (tailEndNodeAttrs["type"] === "triangle" || tailEndNodeAttrs["type"] === "arrow")) {
+                result += "marker-end='url(#markerTriangle)' ";
+            } 
+             result += "/>";
+            
+        }
         
+        result += "</svg>";
+        
+        result += "<div class='block content " + getVerticalAlign(node, slideLayoutSpNode, slideMasterSpNode, type) +
+                "' _id='" + id + "' _idx='" + idx + "' _type='" + type + "' _name='" + name +
+                "' style='" + 
+                    getPosition(slideXfrmNode, slideLayoutXfrmNode, slideMasterXfrmNode) + 
+                    getSize(slideXfrmNode, slideLayoutXfrmNode, slideMasterXfrmNode) + 
+                    " z-index: " + order + ";" +
+                    "transform: rotate(" +rotate+ "deg);"+
+                "'>";
+        
+        // TextBody
+        if (node["p:txBody"] !== undefined) {
+            result += genTextBody(node["p:txBody"], slideLayoutSpNode, slideMasterSpNode, type, warpObj);
+        }
+        result += "</div>";
+
+       // result = "";
     } else {
         
         result += "<div class='block content " + getVerticalAlign(node, slideLayoutSpNode, slideMasterSpNode, type) +
@@ -747,6 +1134,7 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                     getBorder(node, false) +
                     getShapeFill(node, false) +
                     " z-index: " + order + ";" +
+                    "transform: rotate(" +rotate+ "deg);"+
                 "'>";
         
         // TextBody
@@ -773,6 +1161,9 @@ function processPicNode(node, warpObj) {
     var imgArrayBuffer = zip.file(imgName).asArrayBuffer();
     var mimeType = "";
     var xfrmNode = node["p:spPr"]["a:xfrm"];
+    ///////////////////////////////////////Amir//////////////////////////////
+    var rotate = angleToDegrees(node["p:spPr"]["a:xfrm"]["attrs"]["rot"]);
+    //////////////////////////////////////////////////////////////////////////
     switch (imgFileExt) {
         case "jpg":
         case "jpeg":
@@ -795,6 +1186,7 @@ function processPicNode(node, warpObj) {
     }
     return "<div class='block content' style='" + getPosition(xfrmNode, undefined, undefined) + getSize(xfrmNode, undefined, undefined) +
             " z-index: " + order + ";" +
+            "transform: rotate(" +rotate+ "deg);"+
             "'><img src=\"data:" + mimeType + ";base64," + base64ArrayBuffer(imgArrayBuffer) + "\" style='width: 100%; height: 100%'/></div>";
 }
 
@@ -841,7 +1233,8 @@ function processSpPrNode(node, warpObj) {
 }
 
 function genTextBody(textBodyNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
-    
+
+
     var text = "";
     var slideMasterTextStyles = warpObj["slideMasterTextStyles"];
     
@@ -855,17 +1248,25 @@ function genTextBody(textBodyNode, slideLayoutSpNode, slideMasterSpNode, type, w
             var pNode = textBodyNode["a:p"][i];
             var rNode = pNode["a:r"];
             text += "<div class='" + getHorizontalAlign(pNode, slideLayoutSpNode, slideMasterSpNode, type, slideMasterTextStyles) + "'>";
-            text += genBuChar(pNode);
+            text += genBuChar(pNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
             if (rNode === undefined) {
                 // without r
+                //text += genBuChar(pNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
                 text += genSpanElement(pNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
             } else if (rNode.constructor === Array) {
                 // with multi r
                 for (var j=0; j<rNode.length; j++) {
+                    //text += genBuChar(rNode[j], slideLayoutSpNode, slideMasterSpNode, type, warpObj);
                     text += genSpanElement(rNode[j], slideLayoutSpNode, slideMasterSpNode, type, warpObj);
+                    //////////////////Amir////////////
+                    if(pNode["a:br"] !== undefined){
+                        text += "<br>";
+                    }
+                    //////////////////////////////////                    
                 }
             } else {
                 // with one r
+                //text += genBuChar(rNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
                 text += genSpanElement(rNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
             }
             text += "</div>";
@@ -874,18 +1275,26 @@ function genTextBody(textBodyNode, slideLayoutSpNode, slideMasterSpNode, type, w
         // one p
         var pNode = textBodyNode["a:p"];
         var rNode = pNode["a:r"];
-        text += "<div class='" + getHorizontalAlign(pNode, slideLayoutSpNode, slideMasterSpNode, type, slideMasterTextStyles) + "'>";
-        text += genBuChar(pNode);
+        text += "<div class='slide-prgrph " + getHorizontalAlign(pNode, slideLayoutSpNode, slideMasterSpNode, type, slideMasterTextStyles) + "'>";
+        text += genBuChar(pNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
         if (rNode === undefined) {
             // without r
+            //text += genBuChar(pNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
             text += genSpanElement(pNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
         } else if (rNode.constructor === Array) {
             // with multi r
             for (var j=0; j<rNode.length; j++) {
+                //text += genBuChar(rNode[j], slideLayoutSpNode, slideMasterSpNode, type, warpObj);
                 text += genSpanElement(rNode[j], slideLayoutSpNode, slideMasterSpNode, type, warpObj);
+                //////////////////Amir////////////
+                if(pNode["a:br"] !== undefined){
+                    text += "<br>";
+                }
+                //////////////////////////////////
             }
         } else {
             // with one r
+            //text += genBuChar(rNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
             text += genSpanElement(rNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
         }
         text += "</div>";
@@ -894,11 +1303,27 @@ function genTextBody(textBodyNode, slideLayoutSpNode, slideMasterSpNode, type, w
     return text;
 }
 
-function genBuChar(node) {
+function genBuChar(node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
+    ///////////////////////////////////////Amir///////////////////////////////
+     var sldMstrTxtStyles = warpObj["slideMasterTextStyles"];
 
+    var rNode = node["a:r"];
+    var dfltBultColor,dfltBultSize,bultColor,bultSize;
+    if (rNode !== undefined) {
+        dfltBultColor = getFontColor(rNode, type, sldMstrTxtStyles);
+        dfltBultSize = getFontSize(rNode, slideLayoutSpNode, slideMasterSpNode, type, sldMstrTxtStyles);       
+    }else{
+        dfltBultColor = getFontColor(node, type, sldMstrTxtStyles);
+        dfltBultSize = getFontSize(node, slideLayoutSpNode, slideMasterSpNode, type, sldMstrTxtStyles);         
+    }
+    //console.log("Bullet Size: " + bultSize); 
+    var bullet = "";
+    /////////////////////////////////////////////////////////////////
+
+    
     var pPrNode = node["a:pPr"];
     
-    debug(JSON.stringify(pPrNode))
+    //debug(JSON.stringify(pPrNode))
     
     var lvl = parseInt( getTextByPathList(pPrNode, ["attrs", "lvl"]) );
     if (isNaN(lvl)) {
@@ -906,8 +1331,98 @@ function genBuChar(node) {
     }
     
     var buChar = getTextByPathList(pPrNode, ["a:buChar", "attrs", "char"]);
-    if (buChar !== undefined) {
+    /////////////////////////////////Amir///////////////////////////////////
+    var buType = "TYPE_NONE";
+    var buNum = getTextByPathList(pPrNode, ["a:buAutoNum", "attrs", "type"]);
+    var buPic = getTextByPathList(pPrNode, ["a:buBlip", "attrs"]);
+    if(buChar !== undefined){
+        buType = "TYPE_BULLET";
+        // console.log("Bullet Chr to code: " + buChar.charCodeAt(0));
+    }
+    if(buNum !== undefined){
+        buType = "TYPE_NUMERIC";
+    }
+    if(buPic !== undefined){
+        buType = "TYPE_BULPIC";
+    }
+
+    if(buType != "TYPE_NONE"){
         var buFontAttrs = getTextByPathList(pPrNode, ["a:buFont", "attrs"]);
+    }
+    //console.log("Bullet Type: " + buType);
+    //console.log("NumericTypr: " + buNum);
+    //console.log("buChar: " + (buChar === undefined?'':buChar.charCodeAt(0)));
+    //get definde bullet COLOR
+    var buClrNode = pPrNode["a:buClr"];
+    var defBultColor = "NoNe";
+    if(buClrNode !== undefined){
+        defBultColor = getTextByPathList(buClrNode ,["a:srgbClr", "attrs","val"]);
+        //else
+         //<a:scrgbClr r="50%" g="50%" b="50%"/>
+        if(defBultColor === undefined){
+            var defBultColorVals = getTextByPathList(buClrNode ,["a:scrgbClr", "attrs"]);
+            if(defBultColorVals !== undefined){
+                var scrgbClr = defBultColorVals["r"] + "," + defBultColorVals["g"] + "," + defBultColorVals["b"];
+                //defBultColor = cnvrtScrgbColor2Hex(scrgbClr); //TODO
+                // console.log("scrgbClr: " + scrgbClr);
+            }
+        }        
+        //<a:prstClr val="black"/>
+        if(defBultColor === undefined){
+            var prstClr  = getTextByPathList(buClrNode ,["a:prstClr", "attrs","val"]);
+            //defBultColor = cnvrtPrstColor2Hex(prstClr); //TODO
+            // console.log("prstClr: " + prstClr);
+        }
+        //<a:hslClr hue="14400000" sat="100%" lum="50%"/>
+        if(defBultColor === undefined){
+            var defBultColorVals = getTextByPathList(buClrNode ,["a:hslClr", "attrs"]);
+            if(defBultColorVals !== undefined){
+                var hslClr = defBultColorVals["hue"] + "," + defBultColorVals["sat"] + "," + defBultColorVals["lum"];
+                //defBultColor = cnvrtHslColor2Hex(hslClr); //TODO
+                // console.log("hslClr: " + hslClr);
+            }
+        }       
+        //<a:schemeClr val="lt1"/>
+        if(defBultColor === undefined){
+             var schemeClr = getTextByPathList(buClrNode ,["a:schemeClr", "attrs","val"]);
+             //defBultColor = cnvrtSchemeColor2Hex(schemeClr); //TODO
+              // console.log("schemeClr: " + schemeClr);
+        }
+        //<a:sysClr val="windowText"/>
+        if(defBultColor === undefined){
+             var sysClr = getTextByPathList(buClrNode ,["a:sysClr", "attrs","val"]);
+             //defBultColor = cnvrtSysColor2Hex(sysClr); //TODO
+              // console.log("sysClr: " + sysClr);
+        }
+         //console.log("defBultColor: " + defBultColor);
+    }else{
+       // console.log("buClrNode: " + buClrNode);
+    }
+
+    if(defBultColor == "NoNe"){
+        bultColor = dfltBultColor;
+    }else{
+        bultColor = "#" + defBultColor;
+    }
+    //get definde bullet SIZE
+    var buFontSize;
+    buFontSize = getTextByPathList(pPrNode, ["a:buSzPts", "attrs","val"]); //pt
+    if(buFontSize !== undefined){
+        bultSize = parseInt(buFontSize) / 100 +"pt";
+    }else{
+         buFontSize = getTextByPathList(pPrNode, ["a:buSzPct", "attrs","val"]);
+          if(buFontSize !== undefined){
+            var prcnt = parseInt(buFontSize) /100000;
+            //dfltBultSize = XXpt
+            var dfltBultSizeNoPt = dfltBultSize.substr(0,dfltBultSize.length-2);
+            bultSize = prcnt*(parseInt(dfltBultSizeNoPt))+"pt";
+          }else{
+            bultSize = dfltBultSize;
+          }
+    }
+    ////////////////////////////////////////////////////////////////////////
+    if (buType == "TYPE_BULLET") {
+        //var buFontAttrs = getTextByPathList(pPrNode, ["a:buFont", "attrs"]);
         if (buFontAttrs !== undefined) {
             var marginLeft = parseInt( getTextByPathList(pPrNode, ["attrs", "marL"]) ) * 96 / 914400;
             var marginRight = parseInt(buFontAttrs["pitchFamily"]);
@@ -918,26 +1433,61 @@ function genBuChar(node) {
                 marginRight = 0;
             }
             var typeface = buFontAttrs["typeface"];
-            
-            return "<span style='font-family: " + typeface + 
+           
+            bullet =  "<span style='font-family: " + typeface + 
                     "; margin-left: " + marginLeft * lvl + "px" +
                     "; margin-right: " + marginRight + "px" +
-                    "; font-size: 20pt" +
+                    ";color:" + bultColor + 
+                    ";font-size:" + bultSize +";"+ 
                     "'>" + buChar + "</span>";
         } else {
             marginLeft = 328600 * 96 / 914400 * lvl;
-            return "<span style='margin-left: " + marginLeft + "px;'>" + buChar + "</span>";
+            
+            bullet = "<span style='margin-left: " + marginLeft + "px;'>" + buChar + "</span>";
         }
+    } else if(buType == "TYPE_NUMERIC") { ///////////Amir///////////////////////////////
+        if (buFontAttrs !== undefined) {
+            var marginLeft = parseInt( getTextByPathList(pPrNode, ["attrs", "marL"]) ) * 96 / 914400;
+            var marginRight = parseInt(buFontAttrs["pitchFamily"]);
+
+            if (isNaN(marginLeft)) {
+                marginLeft = 328600 * 96 / 914400;
+            }
+            if (isNaN(marginRight)) {
+                marginRight = 0;
+            }
+            //var typeface = buFontAttrs["typeface"];
+            
+            bullet =  "<span style='margin-left: " + marginLeft * lvl + "px" +
+                    "; margin-right: " + marginRight + "px" +
+                    ";color:" + bultColor + 
+                    ";font-size:" + bultSize +";"+ 
+                    "' data-bulltname = '" + buNum + "' data-bulltlvl = '" + lvl + "' class='numeric-bullet-style'></span>";
+        } else {
+            marginLeft = 328600 * 96 / 914400 * lvl;
+            bullet =  "<span style='margin-left: " + marginLeft + "px;' data-bulltname = '" + buNum + "' data-bulltlvl = '" + lvl + "' class='numeric-bullet-style'></span>";
+        }
+        //////////////////////////////////////////////////////////////////////////////////////
+    }else if(buType == "TYPE_BULPIC"){ //PIC BULLET - TODO
+        var marginLeft = parseInt( getTextByPathList(pPrNode, ["attrs", "marL"]) ) * 96 / 914400;
+
+        if (isNaN(marginLeft)) {
+            marginLeft = 328600 * 96 / 914400;
+        }
+        bullet =  "<span style='margin-left: " + marginLeft * lvl + "px" +
+                ";font-size:" + bultSize +";"+ 
+                ";color:" + bultColor +
+                "'>&#8227;  </span>";
+
     } else {
-        //buChar = '•';
-        return "<span style='margin-left: " + 328600 * 96 / 914400 * lvl + "px" +
+        bullet =  "<span style='margin-left: " + 328600 * 96 / 914400 * lvl + "px" +
                     "; margin-right: " + 0 + "px;'></span>";
     }
     
-    return "";
+    return bullet;
 }
 
-function genSpanElement(node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
+function  genSpanElement(node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
     
     var slideMasterTextStyles = warpObj["slideMasterTextStyles"];
     
@@ -957,9 +1507,11 @@ function genSpanElement(node, slideLayoutSpNode, slideMasterSpNode, type, warpOb
         ";font-weight:" + getFontBold(node, type, slideMasterTextStyles) + 
         ";font-style:" + getFontItalic(node, type, slideMasterTextStyles) + 
         ";text-decoration:" + getFontDecoration(node, type, slideMasterTextStyles) +
+        ";text-align:" + getTextHorizontalAlign(node, type, slideMasterTextStyles) + 
         ";vertical-align:" + getTextVerticalAlign(node, type, slideMasterTextStyles) + 
+        ";direction:" + getTextDirection(node, type, slideMasterTextStyles) + 
         ";";
-    
+
     var cssName = "";
     
     if (styleText in styleTable) {
@@ -995,7 +1547,15 @@ function genTable(node, warpObj) {
     var order = node["attrs"]["order"];
     var tableNode = getTextByPathList(node, ["a:graphic", "a:graphicData", "a:tbl"]);
     var xfrmNode = getTextByPathList(node, ["p:xfrm"]);
-    var tableHtml = "<table style='" + getPosition(xfrmNode, undefined, undefined) + getSize(xfrmNode, undefined, undefined) + " z-index: " + order + ";'>";
+    /////////////////////////////////////////Amir////////////////////////////////////////////////
+    var getTblDir = getTextByPathList(node, ["a:graphic", "a:graphicData", "a:tbl","a:tblPr"]);
+    var tblDir = "";
+    if(getTblDir !== undefined){
+        var isRTL = getTblDir["attrs"]["rtl"];
+        tblDir = (isRTL==1?"dir=rtl":"dir=ltr");
+    }
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    var tableHtml = "<table "+tblDir+" style='border-collapse: collapse;" + getPosition(xfrmNode, undefined, undefined) + getSize(xfrmNode, undefined, undefined) + " z-index: " + order + ";'>";
     
     var trNodes = tableNode["a:tr"];
     if (trNodes.constructor === Array) {
@@ -1302,14 +1862,74 @@ function getFontItalic(node, type, slideMasterTextStyles) {
 }
 
 function getFontDecoration(node, type, slideMasterTextStyles) {
-    return (node["a:rPr"] !== undefined && node["a:rPr"]["attrs"]["u"] === "sng") ? "underline" : "initial";
+    ///////////////////////////////Amir///////////////////////////////
+    if(node["a:rPr"] !== undefined){
+        var underLine = node["a:rPr"]["attrs"]["u"];
+        var strikethrough = node["a:rPr"]["attrs"]["strike"] !== undefined?  node["a:rPr"]["attrs"]["strike"]:'noStrike';
+        //console.log("strikethrough: "+strikethrough);
+   
+        if(underLine != "none" && strikethrough == "noStrike"){
+            return "underline";
+        }else if(underLine == "none" && strikethrough != "noStrike"){
+             return "line-through";
+        }else if(underLine != "none" && strikethrough != "noStrike"){
+             return "underline line-through";
+        }else{
+            return "initial";
+        }
+    }else{
+        return "initial";
+    }
+    /////////////////////////////////////////////////////////////////
+    //return (node["a:rPr"] !== undefined && node["a:rPr"]["attrs"]["u"] === "sng") ? "underline" : "initial";
 }
-
+////////////////////////////////////Amir/////////////////////////////////////
+function getTextHorizontalAlign(node, type, slideMasterTextStyles){
+    var getAlgn = getTextByPathList(node, ["a:pPr", "attrs", "algn"]);
+    var align = "initial";
+    if(getAlgn !== undefined){
+        switch(getAlgn){
+            case "l":
+                align = "left";
+                break;
+            case "r":
+                align = "right";
+                break;
+            case "ctr":
+                align = "center";
+                break;
+            case "just":
+                align = "justify";
+                break;
+            case "dist":
+                align = "justify";
+                break;
+            default:
+                align = "initial";
+        }
+    }
+    return align;
+}
+/////////////////////////////////////////////////////////////////////
 function getTextVerticalAlign(node, type, slideMasterTextStyles) {
     var baseline = getTextByPathList(node, ["a:rPr", "attrs", "baseline"]);
     return baseline === undefined ? "baseline" : (parseInt(baseline) / 1000) + "%";
 }
+///////////////////////////////////Amir/////////////////////////////
+function getTextDirection(node, type, slideMasterTextStyles){
+    var isDir = getTextByPathList(node, ["a:pPr", "attrs", "rtl"]);
+    var dir = "";
+    if (isDir !== undefined){
+        if(isDir=="1"){
+            dir = "rtl";
+        }else{ //isDir =="0"
+            dir = "ltr";
+        }
+    }
 
+    return dir;
+}
+//////////////////////////////////////////////////////////////////
 function getBorder(node, isSvgMode) {
     
     //debug(JSON.stringify(node));
@@ -1688,3 +2308,11 @@ function applyLumModify(rgbStr, factor, offset) {
 function debug(data) {
     self.postMessage({"type": "DEBUG", "data": data});
 }
+///////////////////////Amir////////////////
+function angleToDegrees(angle) {
+    if (angle == "" || angle==null) {
+        return 0;
+    }
+    return Math.round(angle / 60000);
+}
+/////////////////////////////////////////
