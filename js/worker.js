@@ -1227,13 +1227,20 @@ function genTextBody(textBodyNode, slideLayoutSpNode, slideMasterSpNode, type, w
     if (textBodyNode === undefined) {
         return text;
     }
-
+    //rtl : <p:txBody>
+    //          <a:bodyPr wrap="square" rtlCol="1">
+    var isRTL = textBodyNode["a:bodyPr"]["attrs"]["rtlCol"];
+    var rtlStr = "";
+    if(isRTL !== undefined && isRTL=="1"){
+        //rtlStr = "dir='rtl'"
+    }
     if (textBodyNode["a:p"].constructor === Array) {
         // multi p
         for (var i=0; i<textBodyNode["a:p"].length; i++) {
             var pNode = textBodyNode["a:p"][i];
             var rNode = pNode["a:r"];
-            text += "<div class='" + getHorizontalAlign(pNode, slideLayoutSpNode, slideMasterSpNode, type, slideMasterTextStyles) + "'>";
+            //dir='rtl'
+            text += "<div "+rtlStr+" class='" + getHorizontalAlign(pNode, slideLayoutSpNode, slideMasterSpNode, type, slideMasterTextStyles) + "'>";
             text += genBuChar(pNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
             if (rNode === undefined) {
                 // without r
@@ -1487,7 +1494,7 @@ function genBuChar(node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
             var imgExt = imgPath.split(".").pop();
             var imgMimeType = getImageMimeType(imgExt);
             buImg = "<img src='data:" + imgMimeType + ";base64," + base64ArrayBuffer(imgArrayBuffer) + "' style='width: 100%; height: 100%'/>"
-            console.log("imgPath: "+imgPath+"\nimgMimeType: "+imgMimeType)
+            //console.log("imgPath: "+imgPath+"\nimgMimeType: "+imgMimeType)
         }
         if(buPicId === undefined){
             buImg = "&#8227;";
@@ -1567,18 +1574,30 @@ function genTable(node, warpObj) {
     var xfrmNode = getTextByPathList(node, ["p:xfrm"]);
     /////////////////////////////////////////Amir////////////////////////////////////////////////
     var getTblDir = getTextByPathList(node, ["a:graphic", "a:graphicData", "a:tbl","a:tblPr"]);
+    var getColsGrid = getTextByPathList(node, ["a:graphic", "a:graphicData", "a:tbl","a:tblGrid","a:gridCol"]);
     var tblDir = "";
     if(getTblDir !== undefined){
         var isRTL = getTblDir["attrs"]["rtl"];
         tblDir = (isRTL==1?"dir=rtl":"dir=ltr");
     }
+     
     ////////////////////////////////////////////////////////////////////////////////////////////
     var tableHtml = "<table "+tblDir+" style='border-collapse: collapse;" + getPosition(xfrmNode, undefined, undefined) + getSize(xfrmNode, undefined, undefined) + " z-index: " + order + ";'>";
     
     var trNodes = tableNode["a:tr"];
     if (trNodes.constructor === Array) {
         for (var i=0; i<trNodes.length; i++) {
-            tableHtml += "<tr>";
+            //////////////row height ////////////Amir
+            var rowHeightParam = trNodes[i]["attrs"]["h"];
+            var rowHeight = 0;
+            if(rowHeightParam !== undefined){
+                rowHeight = parseInt(rowHeightParam) * 96 / 914400;
+                tableHtml += "<tr style='height:"+rowHeight+"px;'>";
+            }else{
+                tableHtml += "<tr>";
+            }
+            ////////////////////////////////////////////////
+           
             var tcNodes = trNodes[i]["a:tc"];
             
             if (tcNodes.constructor === Array) {
@@ -1588,31 +1607,156 @@ function genTable(node, warpObj) {
                     var colSpan = getTextByPathList(tcNodes[j], ["attrs", "gridSpan"]);
                     var vMerge = getTextByPathList(tcNodes[j], ["attrs", "vMerge"]);
                     var hMerge = getTextByPathList(tcNodes[j], ["attrs", "hMerge"]);
+                    //Cells Style : TODO /////////////Amir
+                    //console.log(tcNodes[j]);
+                    var colWidthParam = getColsGrid[j]["attrs"]["w"];
+                    var colStyl = "";
+                    if(colWidthParam !== undefined){
+                        var colWidth =  parseInt(colWidthParam) * 96 / 914400;
+                        colStyl += "width:" + colWidth +"px;"
+                    }
+                    var getFill = tcNodes[j]["a:tcPr"]["a:solidFill"];
+                    var fillColor = "";
+                    if(getFill !== undefined){
+                        console.log(getFill);
+                        var rgbFillColor = getFill["a:srgbClr"];
+                        if (rgbFillColor === undefined) {
+                            var schemeClrNode = getFill["a:schemeClr"];
+                            if(schemeClrNode !== undefined){
+                                var schemeClr = "a:" + schemeClrNode["attrs"]["val"];    
+                                fillColor = getSchemeColorFromTheme(schemeClr);
+                            }
+                        }else{
+                            fillColor = rgbFillColor["attrs"]["val"]
+                        }
+                    }else{
+                        //get from Theme TODO
+                    }
+                    if(fillColor != ""){
+                        colStyl += " background-color:#" + fillColor +";"
+                    }
+                    //console.log(fillColor);
+                    ////////////////////////////////////
+                   
+                    
                     if (rowSpan !== undefined) {
-                        tableHtml += "<td rowspan='" + parseInt(rowSpan) + "'>" + text + "</td>";
+                        tableHtml += "<td rowspan='" + parseInt(rowSpan) + "' style='"+colStyl+"'>" + text + "</td>";
                     } else if (colSpan !== undefined) {
-                        tableHtml += "<td colspan='" + parseInt(colSpan) + "'>" + text + "</td>";
+                        tableHtml += "<td colspan='" + parseInt(colSpan) + "' style='"+colStyl+"'>" + text + "</td>";
                     } else if (vMerge === undefined && hMerge === undefined) {
-                        tableHtml += "<td>" + text + "</td>";
+                        tableHtml += "<td style='"+colStyl+"'>" + text + "</td>";
                     }
                 }
             } else {
                 var text = genTextBody(tcNodes["a:txBody"]);
-                tableHtml += "<td>" + text + "</td>";
+                //Cells Style : TODO /////////////Amir
+                var colWidthParam = getColsGrid[0]["attrs"]["w"];
+                var colStyl = "";
+                if(colWidthParam !== undefined){
+                    var colWidth =  parseInt(colWidthParam) * 96 / 914400;
+                    colStyl += "width:" + colWidth +"px;"
+                }
+                var getFill = tcNodes["a:tcPr"]["a:solidFill"];
+                var fillColor = "";
+                if(getFill !== undefined){
+                    console.log(getFill);
+                    var rgbFillColor = getFill["a:srgbClr"];
+                    if (rgbFillColor === undefined) {
+                        var schemeClrNode = getFill["a:schemeClr"];
+                        if(schemeClrNode !== undefined){
+                            var schemeClr = "a:" + schemeClrNode["attrs"]["val"];    
+                            fillColor = getSchemeColorFromTheme(schemeClr);
+                        }
+                    }else{
+                        fillColor = rgbFillColor["attrs"]["val"]
+                    }
+                }else{
+                    //get from Theme TODO
+                }
+                if(fillColor != ""){
+                    colStyl += " background-color:#" + fillColor +";"
+                }                
+                ////////////////////////////////////
+                tableHtml += "<td style='"+colStyl+"'>" + text + "</td>";
             }
             tableHtml += "</tr>";
         }
     } else {
-        tableHtml += "<tr>";
+        //////////////row height ////////////Amir
+        var rowHeightParam = trNodes["attrs"]["h"];
+        var rowHeight = 0;
+        if(rowHeightParam !== undefined){
+            rowHeight = parseInt(rowHeightParam) * 96 / 914400;
+            tableHtml += "<tr style='height:"+rowHeight+"px;'>";
+        }else{
+            tableHtml += "<tr>";
+        }
+        ////////////////////////////////////////////////
         var tcNodes = trNodes["a:tc"];
         if (tcNodes.constructor === Array) {
             for (var j=0; j<tcNodes.length; j++) {
                 var text = genTextBody(tcNodes[j]["a:txBody"]);
-                tableHtml += "<td>" + text + "</td>";
+                //Cells Style : TODO /////////////Amir
+                var colWidthParam = getColsGrid[j]["attrs"]["w"];
+                var colStyl = "";
+                if(colWidthParam !== undefined){
+                    var colWidth =  parseInt(colWidthParam) * 96 / 914400;
+                    colStyl += "width:" + colWidth +"px;"
+                }
+                var getFill = tcNodes[j]["a:tcPr"]["a:solidFill"];
+                var fillColor = "";
+                if(getFill !== undefined){
+                    console.log(getFill);
+                    var rgbFillColor = getFill["a:srgbClr"];
+                    if (rgbFillColor === undefined) {
+                        var schemeClrNode = getFill["a:schemeClr"];
+                        if(schemeClrNode !== undefined){
+                            var schemeClr = "a:" + schemeClrNode["attrs"]["val"];    
+                            fillColor = getSchemeColorFromTheme(schemeClr);
+                        }
+                    }else{
+                        fillColor = rgbFillColor["attrs"]["val"]
+                    }
+                }else{
+                    //get from Theme TODO
+                }
+                if(fillColor != ""){
+                    colStyl += " background-color:#" + fillColor +";"
+                }                
+                ////////////////////////////////////
+               tableHtml += "<td style='"+colStyl+"'>" + text + "</td>";
             }
         } else {
             var text = genTextBody(tcNodes["a:txBody"]);
-            tableHtml += "<td>" + text + "</td>";
+                //Cells Style : TODO /////////////Amir
+                var colWidthParam = getColsGrid[0]["attrs"]["w"];
+                var colStyl = "";
+                if(colWidthParam !== undefined){
+                    var colWidth =  parseInt(colWidthParam) * 96 / 914400;
+                    colStyl += "width:" + colWidth +"px;"
+                }
+                var getFill = tcNodes[j]["a:tcPr"]["a:solidFill"];
+                var fillColor = "";
+                if(getFill !== undefined){
+                    console.log(getFill);
+                    var rgbFillColor = getFill["a:srgbClr"];
+                    if (rgbFillColor === undefined) {
+                        var schemeClrNode = getFill["a:schemeClr"];
+                        if(schemeClrNode !== undefined){
+                            var schemeClr = "a:" + schemeClrNode["attrs"]["val"];    
+                            fillColor = getSchemeColorFromTheme(schemeClr);
+                        }
+                    }else{
+                        fillColor = rgbFillColor["attrs"]["val"]
+                    }
+                }else{
+                    //get from Theme TODO
+                }
+                if(fillColor != ""){
+                    colStyl += " background-color:#" + fillColor +";"
+                }                
+                ////////////////////////////////////
+               tableHtml += "<td style='"+colStyl+"'>" + text + "</td>";
         }
         tableHtml += "</tr>";
     }
