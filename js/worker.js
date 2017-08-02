@@ -4,7 +4,6 @@ importScripts(
     './jszip.min.js',
     './highlight.min.js',
     './colz.class.min.js',
-    './highlight.min.js',
     './tXml.js',
     './functions.js'
 );
@@ -12,6 +11,8 @@ importScripts(
 var MsgQueue = new Array();
 
 var themeContent = null;
+
+var slideLayoutClrOvride = "";
 
 var chartID = 0;
 
@@ -54,7 +55,7 @@ function processPPTX(data) {
     var filesInfo = getContentTypes(zip);
     var slideSize = getSlideSize(zip);
     themeContent = loadTheme(zip);
-    
+    //console.log(themeContent)
     self.postMessage({
         "type": "slideSize",
         "data": slideSize
@@ -181,12 +182,16 @@ function processSingleSlide(zip, sldFileName, index, slideSize) {
     } else {
         layoutFilename = RelationshipArray["attrs"]["Target"].replace("../", "ppt/");
     }
-    
+    //console.log(slideResObj);
     // Open slideLayoutXX.xml
     var slideLayoutContent = readXmlFile(zip, layoutFilename);
     var slideLayoutTables = indexNodes(slideLayoutContent);
+    var sldLayoutClrOvr = slideLayoutContent["p:sldLayout"]["p:clrMapOvr"]["a:overrideClrMapping"];
     //debug(slideLayoutTables);
-    
+    //console.log(slideLayoutClrOvride);
+    if(sldLayoutClrOvr !== undefined){
+        slideLayoutClrOvride = sldLayoutClrOvr["attrs"];
+    }
     // =====< Step 2 >=====
     // Read slide master filename of the slidelayout (Get slideMasterXX.xml)
     // @resName: ppt/slideLayouts/slideLayout1.xml
@@ -698,7 +703,7 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                 if(shapAdjst !== undefined){
                     var adjst = parseInt(shapAdjst.substr(4)) /100000;
                     adjst_val = adjst/max_adj_const;
-                   console.log("w: "+w+"\nh: "+h+"\nadjst: "+adjst_val+"\nmax_adj_const: "+max_adj_const);
+                   //console.log("w: "+w+"\nh: "+h+"\nadjst: "+adjst_val+"\nmax_adj_const: "+max_adj_const);
                 }
                 result += " <polygon points='"+adjst_val*w+" 0,0 " + h + ","+(1-adjst_val)*w+" "+h+","+w+" 0' fill='" + fillColor + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";    
@@ -1006,7 +1011,7 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
         var pathNode = getTextByPathList(pathLstNode, ["a:path", "attrs"]);
         var maxX = parseInt(pathNode["w"]) * 96 / 914400;
         var maxY = parseInt(pathNode["h"]) * 96 / 914400;
-        console.log("w = "+w+"\nh = "+h+"\nmaxX = "+maxX +"\nmaxY = " + maxY);
+        //console.log("w = "+w+"\nh = "+h+"\nmaxX = "+maxX +"\nmaxY = " + maxY);
         //cheke if it is close shape
         var closeNode = getTextByPathList(pathLstNode, ["a:path","a:close"]);
         var startPoint = getTextByPathList(pathLstNode, ["a:path","a:moveTo","a:pt","attrs"]);
@@ -1164,26 +1169,7 @@ function processPicNode(node, warpObj) {
     ///////////////////////////////////////Amir//////////////////////////////
     var rotate = angleToDegrees(node["p:spPr"]["a:xfrm"]["attrs"]["rot"]);
     //////////////////////////////////////////////////////////////////////////
-    switch (imgFileExt) {
-        case "jpg":
-        case "jpeg":
-            mimeType = "image/jpeg";
-            break;
-        case "png":
-            mimeType = "image/png";
-            break;
-        case "gif":
-            mimeType = "image/gif";
-            break;
-        case "emf": // Not native support
-            mimeType = "image/x-emf";
-            break;
-        case "wmf": // Not native support
-            mimeType = "image/x-wmf";
-            break;
-        default:
-            mimeType = "image/*";
-    }
+    mimeType = getImageMimeType(imgFileExt);
     return "<div class='block content' style='" + getPosition(xfrmNode, undefined, undefined) + getSize(xfrmNode, undefined, undefined) +
             " z-index: " + order + ";" +
             "transform: rotate(" +rotate+ "deg);"+
@@ -1334,7 +1320,7 @@ function genBuChar(node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
     /////////////////////////////////Amir///////////////////////////////////
     var buType = "TYPE_NONE";
     var buNum = getTextByPathList(pPrNode, ["a:buAutoNum", "attrs", "type"]);
-    var buPic = getTextByPathList(pPrNode, ["a:buBlip", "attrs"]);
+    var buPic = getTextByPathList(pPrNode, ["a:buBlip"]);
     if(buChar !== undefined){
         buType = "TYPE_BULLET";
         // console.log("Bullet Chr to code: " + buChar.charCodeAt(0));
@@ -1370,6 +1356,9 @@ function genBuChar(node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
         //<a:prstClr val="black"/>
         if(defBultColor === undefined){
             var prstClr  = getTextByPathList(buClrNode ,["a:prstClr", "attrs","val"]);
+            if(prstClr !== undefined){
+                //console.log("prstClr: " + prstClr);
+            }
             //defBultColor = cnvrtPrstColor2Hex(prstClr); //TODO
             // console.log("prstClr: " + prstClr);
         }
@@ -1385,8 +1374,10 @@ function genBuChar(node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
         //<a:schemeClr val="lt1"/>
         if(defBultColor === undefined){
              var schemeClr = getTextByPathList(buClrNode ,["a:schemeClr", "attrs","val"]);
-             //defBultColor = cnvrtSchemeColor2Hex(schemeClr); //TODO
-              // console.log("schemeClr: " + schemeClr);
+             if(schemeClr !== undefined){
+                defBultColor = getSchemeColorFromTheme("a:"+schemeClr);
+                //console.log("schemeClr: " + schemeClr+"\ndefBultColor: "+defBultColor);
+             }
         }
         //<a:sysClr val="windowText"/>
         if(defBultColor === undefined){
@@ -1467,18 +1458,45 @@ function genBuChar(node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
             marginLeft = 328600 * 96 / 914400 * lvl;
             bullet =  "<span style='margin-left: " + marginLeft + "px;' data-bulltname = '" + buNum + "' data-bulltlvl = '" + lvl + "' class='numeric-bullet-style'></span>";
         }
-        //////////////////////////////////////////////////////////////////////////////////////
-    }else if(buType == "TYPE_BULPIC"){ //PIC BULLET - TODO
+       
+    }else if(buType == "TYPE_BULPIC"){ //PIC BULLET
         var marginLeft = parseInt( getTextByPathList(pPrNode, ["attrs", "marL"]) ) * 96 / 914400;
+        var marginRight = parseInt( getTextByPathList(pPrNode, ["attrs", "marR"]) ) * 96 / 914400;
 
+        if (isNaN(marginRight)) {
+            marginRight = 0;
+        }
+         //console.log("marginRight: "+marginRight)
+        //buPic
         if (isNaN(marginLeft)) {
             marginLeft = 328600 * 96 / 914400;
+        }else{
+             marginLeft = 0;
+        }
+        //var buPicId = getTextByPathList(buPic, ["a:blip","a:extLst","a:ext","asvg:svgBlip" , "attrs", "r:embed"]);
+        var buPicId = getTextByPathList(buPic, ["a:blip", "attrs", "r:embed"]);
+        var svgPicPath = ""; 
+        var buImg;
+        if(buPicId !== undefined){
+            //svgPicPath = warpObj["slideResObj"][buPicId]["target"];
+            //buImg = warpObj["zip"].file(svgPicPath).asText();
+            //}else{
+            //buPicId = getTextByPathList(buPic, ["a:blip", "attrs", "r:embed"]);
+            var imgPath =  warpObj["slideResObj"][buPicId]["target"];
+            var imgArrayBuffer = warpObj["zip"].file(imgPath).asArrayBuffer();
+            var imgExt = imgPath.split(".").pop();
+            var imgMimeType = getImageMimeType(imgExt);
+            buImg = "<img src='data:" + imgMimeType + ";base64," + base64ArrayBuffer(imgArrayBuffer) + "' style='width: 100%; height: 100%'/>"
+            console.log("imgPath: "+imgPath+"\nimgMimeType: "+imgMimeType)
+        }
+        if(buPicId === undefined){
+            buImg = "&#8227;";
         }
         bullet =  "<span style='margin-left: " + marginLeft * lvl + "px" +
-                ";font-size:" + bultSize +";"+ 
-                ";color:" + bultColor +
-                "'>&#8227;  </span>";
-
+                    "; margin-right: " + marginRight + "px" +
+                    ";width:" + bultSize +";display: inline-block; "+ 
+                     "'>"+buImg+"  </span>";
+         //////////////////////////////////////////////////////////////////////////////////////
     } else {
         bullet =  "<span style='margin-left: " + 328600 * 96 / 914400 * lvl + "px" +
                     "; margin-right: " + 0 + "px;'></span>";
@@ -1818,9 +1836,22 @@ function getFontType(node, type, slideMasterTextStyles) {
 
 function getFontColor(node, type, slideMasterTextStyles) {
     var color = getTextByPathStr(node, "a:rPr a:solidFill a:srgbClr attrs val");
+    //console.log(themeContent)
+    //var schemeClr = getTextByPathList(buClrNode ,["a:schemeClr", "attrs","val"]);
+    if(color === undefined){
+        var schemeClr = getTextByPathStr(node, "a:rPr a:solidFill a:schemeClr attrs val"); //bg1
+       if(schemeClr !== undefined){
+           color = getSchemeColorFromTheme("a:"+schemeClr);
+       }
+       if(color === undefined){
+            var prstClr = getTextByPathStr(node, "a:rPr a:solidFill a:prstClr attrs val");
+            if(prstClr !== undefined){
+               color = prstClr;
+            }
+       }
+    }
     return (color === undefined) ? "#000" : "#" + color;
 }
-
 function getFontSize(node, slideLayoutSpNode, slideMasterSpNode, type, slideMasterTextStyles) {
     var fontSize = undefined;
     if (node["a:rPr"] !== undefined) {
@@ -1864,10 +1895,10 @@ function getFontItalic(node, type, slideMasterTextStyles) {
 function getFontDecoration(node, type, slideMasterTextStyles) {
     ///////////////////////////////Amir///////////////////////////////
     if(node["a:rPr"] !== undefined){
-        var underLine = node["a:rPr"]["attrs"]["u"];
+        var underLine = node["a:rPr"]["attrs"]["u"] !== undefined? node["a:rPr"]["attrs"]["u"]:"none";
         var strikethrough = node["a:rPr"]["attrs"]["strike"] !== undefined?  node["a:rPr"]["attrs"]["strike"]:'noStrike';
         //console.log("strikethrough: "+strikethrough);
-   
+        
         if(underLine != "none" && strikethrough == "noStrike"){
             return "underline";
         }else if(underLine == "none" && strikethrough != "noStrike"){
@@ -1951,15 +1982,19 @@ function getBorder(node, isSvgMode) {
     var borderColor = getTextByPathList(lineNode, ["a:solidFill", "a:srgbClr", "attrs", "val"]);
     if (borderColor === undefined) {
         var schemeClrNode = getTextByPathList(lineNode, ["a:solidFill", "a:schemeClr"]);
-        var schemeClr = "a:" + getTextByPathList(schemeClrNode, ["attrs", "val"]);    
-        var borderColor = getSchemeColorFromTheme(schemeClr);
+        if(schemeClrNode !== undefined){
+            var schemeClr = "a:" + getTextByPathList(schemeClrNode, ["attrs", "val"]);    
+            var borderColor = getSchemeColorFromTheme(schemeClr);
+        }
     }
     
     // 2. drawingML namespace
     if (borderColor === undefined) {
         var schemeClrNode = getTextByPathList(node, ["p:style", "a:lnRef", "a:schemeClr"]);
-        var schemeClr = "a:" + getTextByPathList(schemeClrNode, ["attrs", "val"]);    
-        var borderColor = getSchemeColorFromTheme(schemeClr);
+        if(schemeClrNode !== undefined){
+            var schemeClr = "a:" + getTextByPathList(schemeClrNode, ["attrs", "val"]);    
+            var borderColor = getSchemeColorFromTheme(schemeClr);
+        }
         
         if (borderColor !== undefined) {
             var shade = getTextByPathList(schemeClrNode, ["a:shade", "attrs", "val"]);
@@ -2073,14 +2108,20 @@ function getShapeFill(node, isSvgMode) {
     
     // From theme
     if (fillColor === undefined) {
-        var schemeClr = "a:" + getTextByPathList(node, ["p:spPr", "a:solidFill", "a:schemeClr", "attrs", "val"]);
-        fillColor = getSchemeColorFromTheme(schemeClr);
+        var schemeClrName = getTextByPathList(node, ["p:spPr", "a:solidFill", "a:schemeClr", "attrs", "val"]);
+        if(schemeClrName !== undefined){
+            var schemeClr = "a:" + schemeClrName;
+            fillColor = getSchemeColorFromTheme(schemeClr);
+        }
     }
     
     // 2. drawingML namespace
     if (fillColor === undefined) {
-        var schemeClr = "a:" + getTextByPathList(node, ["p:style", "a:fillRef", "a:schemeClr", "attrs", "val"]);
-        fillColor = getSchemeColorFromTheme(schemeClr);
+        var schemeClrName = getTextByPathList(node, ["p:style", "a:fillRef", "a:schemeClr", "attrs", "val"]);
+        if(schemeClrName !== undefined){
+            var schemeClr = "a:" + schemeClrName;
+            fillColor = getSchemeColorFromTheme(schemeClr);
+        }
     }
     
     if (fillColor !== undefined) {
@@ -2135,14 +2176,20 @@ function getSolidFill(solidFill) {
 }
 
 function getSchemeColorFromTheme(schemeClr) {
-    // TODO: <p:clrMap ...> in slide master
-    // e.g. tx2="dk2" bg2="lt2" tx1="dk1" bg1="lt1"
-    switch (schemeClr) {
-        case "a:tx1": schemeClr = "a:dk1"; break;
-        case "a:tx2": schemeClr = "a:dk2"; break;
-        case "a:bg1": schemeClr = "a:lt1"; break;
-        case "a:bg2": schemeClr = "a:lt2"; break;
+    //<p:clrMap ...> in slide master
+    // e.g. tx2="dk2" bg2="lt2" tx1="dk1" bg1="lt1" slideLayoutClrOvride
+    //console.log(slideLayoutClrOvride);
+    var schmClrName =  schemeClr.substr(2);
+    switch (schmClrName) {
+        case "tx1":
+        case "tx2":
+        case "bg1":
+        case "bg2":
+            schemeClr = "a:"+slideLayoutClrOvride[schmClrName];
+            //console.log(schmClrName+ "=> "+schemeClr);
+            break;
     }
+       
     var refNode = getTextByPathList(themeContent, ["a:theme", "a:themeElements", "a:clrScheme", schemeClr]);
     var color = getTextByPathList(refNode, ["a:srgbClr", "attrs", "val"]);
     if (color === undefined) {
@@ -2315,4 +2362,28 @@ function angleToDegrees(angle) {
     }
     return Math.round(angle / 60000);
 }
-/////////////////////////////////////////
+function getImageMimeType(imgFileExt){
+    var mimeType = "";
+     switch (imgFileExt) {
+        case "jpg":
+        case "jpeg":
+            mimeType = "image/jpeg";
+            break;
+        case "png":
+            mimeType = "image/png";
+            break;
+        case "gif":
+            mimeType = "image/gif";
+            break;
+        case "emf": // Not native support
+            mimeType = "image/x-emf";
+            break;
+        case "wmf": // Not native support
+            mimeType = "image/x-wmf";
+            break;
+        default:
+            mimeType = "image/*";
+    }
+    return mimeType;
+}
+////////////////////////////////////////
