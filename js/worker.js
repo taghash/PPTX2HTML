@@ -22,6 +22,10 @@ var otherFontSize = 16;
 
 var styleTable = {};
 
+//////////////////////////////////Amir////////////////
+//get Table styles
+var tableStyles;
+//////////////////////////////////////////////////////
 onmessage = function(e) {
     switch (e.data.type) {
         case "processPPTX":
@@ -55,7 +59,11 @@ function processPPTX(data) {
     var filesInfo = getContentTypes(zip);
     var slideSize = getSlideSize(zip);
     themeContent = loadTheme(zip);
-    //console.log(themeContent)
+
+    tableStyles = readXmlFile(zip, "ppt/tableStyles.xml");
+
+    
+
     self.postMessage({
         "type": "slideSize",
         "data": slideSize
@@ -480,6 +488,7 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
         var headEndNodeAttrs = getTextByPathList(node, ["p:spPr", "a:ln", "a:headEnd", "attrs"]);
         var tailEndNodeAttrs = getTextByPathList(node, ["p:spPr", "a:ln", "a:tailEnd", "attrs"]);
         // type: none, triangle, stealth, diamond, oval, arrow
+        
         if ( (headEndNodeAttrs !== undefined && (headEndNodeAttrs["type"] === "triangle" || headEndNodeAttrs["type"] === "arrow")) || 
              (tailEndNodeAttrs !== undefined && (tailEndNodeAttrs["type"] === "triangle" || tailEndNodeAttrs["type"] === "arrow")) ) {
             var triangleMarker = "<defs><marker id=\"markerTriangle\" viewBox=\"0 0 10 10\" refX=\"1\" refY=\"5\" markerWidth=\"5\" markerHeight=\"5\" stroke='" + border.color + "' fill='" + border.color + 
@@ -1349,50 +1358,7 @@ function genBuChar(node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
     var buClrNode = pPrNode["a:buClr"];
     var defBultColor = "NoNe";
     if(buClrNode !== undefined){
-        defBultColor = getTextByPathList(buClrNode ,["a:srgbClr", "attrs","val"]);
-        //else
-         //<a:scrgbClr r="50%" g="50%" b="50%"/>
-        if(defBultColor === undefined){
-            var defBultColorVals = getTextByPathList(buClrNode ,["a:scrgbClr", "attrs"]);
-            if(defBultColorVals !== undefined){
-                var scrgbClr = defBultColorVals["r"] + "," + defBultColorVals["g"] + "," + defBultColorVals["b"];
-                //defBultColor = cnvrtScrgbColor2Hex(scrgbClr); //TODO
-                // console.log("scrgbClr: " + scrgbClr);
-            }
-        }        
-        //<a:prstClr val="black"/>
-        if(defBultColor === undefined){
-            var prstClr  = getTextByPathList(buClrNode ,["a:prstClr", "attrs","val"]);
-            if(prstClr !== undefined){
-                //console.log("prstClr: " + prstClr);
-            }
-            //defBultColor = cnvrtPrstColor2Hex(prstClr); //TODO
-            // console.log("prstClr: " + prstClr);
-        }
-        //<a:hslClr hue="14400000" sat="100%" lum="50%"/>
-        if(defBultColor === undefined){
-            var defBultColorVals = getTextByPathList(buClrNode ,["a:hslClr", "attrs"]);
-            if(defBultColorVals !== undefined){
-                var hslClr = defBultColorVals["hue"] + "," + defBultColorVals["sat"] + "," + defBultColorVals["lum"];
-                //defBultColor = cnvrtHslColor2Hex(hslClr); //TODO
-                // console.log("hslClr: " + hslClr);
-            }
-        }       
-        //<a:schemeClr val="lt1"/>
-        if(defBultColor === undefined){
-             var schemeClr = getTextByPathList(buClrNode ,["a:schemeClr", "attrs","val"]);
-             if(schemeClr !== undefined){
-                defBultColor = getSchemeColorFromTheme("a:"+schemeClr);
-                //console.log("schemeClr: " + schemeClr+"\ndefBultColor: "+defBultColor);
-             }
-        }
-        //<a:sysClr val="windowText"/>
-        if(defBultColor === undefined){
-             var sysClr = getTextByPathList(buClrNode ,["a:sysClr", "attrs","val"]);
-             //defBultColor = cnvrtSysColor2Hex(sysClr); //TODO
-              // console.log("sysClr: " + sysClr);
-        }
-         //console.log("defBultColor: " + defBultColor);
+        defBultColor = getSolidFill(buClrNode);
     }else{
        // console.log("buClrNode: " + buClrNode);
     }
@@ -1550,6 +1516,7 @@ function  genSpanElement(node, slideLayoutSpNode, slideMasterSpNode, type, warpO
     }
     
     var linkID = getTextByPathList(node, ["a:rPr", "a:hlinkClick", "attrs", "r:id"]);
+    //get link colors : TODO
     if (linkID !== undefined) {
         var linkURL = warpObj["slideResObj"][linkID]["target"];
         return "<span class='text-block " + cssName + "'><a href='" + linkURL + "' target='_blank'>" + text.replace(/\s/i, "&nbsp;") + "</a></span>";
@@ -1573,29 +1540,168 @@ function genTable(node, warpObj) {
     var tableNode = getTextByPathList(node, ["a:graphic", "a:graphicData", "a:tbl"]);
     var xfrmNode = getTextByPathList(node, ["p:xfrm"]);
     /////////////////////////////////////////Amir////////////////////////////////////////////////
-    var getTblDir = getTextByPathList(node, ["a:graphic", "a:graphicData", "a:tbl","a:tblPr"]);
+    var getTblPr = getTextByPathList(node, ["a:graphic", "a:graphicData", "a:tbl","a:tblPr"]);
     var getColsGrid = getTextByPathList(node, ["a:graphic", "a:graphicData", "a:tbl","a:tblGrid","a:gridCol"]);
     var tblDir = "";
-    if(getTblDir !== undefined){
-        var isRTL = getTblDir["attrs"]["rtl"];
+    if(getTblPr !== undefined){
+        var isRTL = getTblPr["attrs"]["rtl"];
         tblDir = (isRTL==1?"dir=rtl":"dir=ltr");
     }
-     
+    var firstRowAttr =  getTblPr["attrs"]["firstRow"]; //associated element <a:firstRow> in the table styles
+    var firstColAttr =  getTblPr["attrs"]["firstCol"]; //associated element <a:firstCol> in the table styles
+    var lastRowAttr =  getTblPr["attrs"]["lastRow"]; //associated element <a:lastRow> in the table styles
+    var lastColAttr =  getTblPr["attrs"]["lastCol"]; //associated element <a:lastCol> in the table styles
+    var bandRowAttr =  getTblPr["attrs"]["bandRow"]; //associated element <a:band1H>, <a:band2H> in the table styles
+    var bandColAttr =  getTblPr["attrs"]["bandCol"]; //associated element <a:band1V>, <a:band2V> in the table styles
+    //console.log(firstColAttr);
     ////////////////////////////////////////////////////////////////////////////////////////////
     var tableHtml = "<table "+tblDir+" style='border-collapse: collapse;" + getPosition(xfrmNode, undefined, undefined) + getSize(xfrmNode, undefined, undefined) + " z-index: " + order + ";'>";
     
     var trNodes = tableNode["a:tr"];
     if (trNodes.constructor === Array) {
         for (var i=0; i<trNodes.length; i++) {
-            //////////////row height ////////////Amir
+            //////////////rows Style ////////////Amir
             var rowHeightParam = trNodes[i]["attrs"]["h"];
             var rowHeight = 0;
+            var rowsStyl = "";
             if(rowHeightParam !== undefined){
                 rowHeight = parseInt(rowHeightParam) * 96 / 914400;
-                tableHtml += "<tr style='height:"+rowHeight+"px;'>";
-            }else{
-                tableHtml += "<tr>";
+                rowsStyl += "height:"+rowHeight+"px;";
+                //tableHtml += "<tr style='height:"+rowHeight+"px;'>";
             }
+            
+            //get from Theme (tableStyles.xml) TODO 
+            //get tableStyleId = a:tbl => a:tblPr => a:tableStyleId
+            var thisTblStyle;
+            var tbleStyleId = getTblPr["a:tableStyleId"];
+            if(tbleStyleId !== undefined){
+                //get Style from tableStyles.xml by {var tbleStyleId}
+                //table style object : tableStyles
+                var tbleStylList = tableStyles["a:tblStyleLst"]["a:tblStyle"];
+                
+                for(var k=0;k<tbleStylList.length;k++){
+                    if(tbleStylList[k]["attrs"]["styleId"] == tbleStyleId){
+                        thisTblStyle = tbleStylList[k];
+                    }
+                }
+            }
+                //console.log(thisTblStyle);
+            if(i==0 && firstRowAttr !== undefined){
+                var fillColor="fff";
+                var colorOpacity = 1;
+                if(thisTblStyle["a:firstRow"] !==undefined){
+                    var bgFillschemeClr =  getTextByPathList(thisTblStyle, ["a:firstRow","a:tcStyle","a:fill","a:solidFill"]);
+                    if(bgFillschemeClr !==undefined){
+                        fillColor = getSolidFill(bgFillschemeClr);
+                        colorOpacity = getColorOpacity(bgFillschemeClr);
+                    }
+                    //console.log(thisTblStyle["a:firstRow"])
+                    
+                    //borders color
+                    //borders Width
+                    var borderStyl = getTextByPathList(thisTblStyle,["a:firstRow","a:tcStyle","a:tcBdr"]);
+                    if(borderStyl !== undefined){
+                        var row_borders = getTableBorders(borderStyl);
+                        rowsStyl += row_borders;
+                    }
+                    //console.log(thisTblStyle["a:firstRow"])
+                    
+                    //Text Style - TODO
+                    var rowTxtStyl = getTextByPathList(thisTblStyle,["a:firstRow","a:tcTxStyle"]);
+                    if(rowTxtStyl !== undefined){
+                        /*
+                    var styleText = 
+                        "color:" + getFontColor(node, type, slideMasterTextStyles) + 
+                        ";font-size:" + getFontSize(node, slideLayoutSpNode, slideMasterSpNode, type, slideMasterTextStyles) + 
+                        ";font-family:" + getFontType(node, type, slideMasterTextStyles) + 
+                        ";font-weight:" + getFontBold(node, type, slideMasterTextStyles) + 
+                        ";font-style:" + getFontItalic(node, type, slideMasterTextStyles) + 
+                        ";text-decoration:" + getFontDecoration(node, type, slideMasterTextStyles) +
+                        ";text-align:" + getTextHorizontalAlign(node, type, slideMasterTextStyles) + 
+                        ";vertical-align:" + getTextVerticalAlign(node, type, slideMasterTextStyles) + 
+                        ";direction:" + getTextDirection(node, type, slideMasterTextStyles) + 
+                        ";";
+                        */
+                    }
+                    
+                }
+                rowsStyl += " background-color:#" + fillColor +";" + 
+                            " opacity:" + colorOpacity + ";";
+
+            }else if(i>0 && bandRowAttr!== undefined){
+                 var fillColor="fff";
+                 var colorOpacity = 1;
+                if((i%2)==0){
+                    if(thisTblStyle["a:band2H"] !==undefined){
+                        //console.log(thisTblStyle["a:band2H"]);
+                        var bgFillschemeClr = getTextByPathList(thisTblStyle,["a:band2H","a:tcStyle","a:fill","a:solidFill"]);
+                        if(bgFillschemeClr !==undefined){
+                            fillColor = getSolidFill(bgFillschemeClr);
+                            colorOpacity = getColorOpacity(bgFillschemeClr);
+                        }
+                        //borders color
+                        //borders Width
+                        var borderStyl = getTextByPathList(thisTblStyle,["a:band2H","a:tcStyle","a:tcBdr"]);
+                        if(borderStyl !== undefined){
+                            var row_borders = getTableBorders(borderStyl);
+                            rowsStyl += row_borders;
+                        }
+                        //console.log(thisTblStyle["a:band2H"])
+                        
+                        //Text Style - TODO
+                        var rowTxtStyl = getTextByPathList(thisTblStyle,["a:band2H","a:tcTxStyle"]);
+                        if(rowTxtStyl !== undefined){
+                            
+                        }
+                        //console.log(i,thisTblStyle)
+                    }/*else{
+                        var bgFillschemeClr = thisTblStyle["a:wholeTbl"]["a:tcStyle"]["a:fill"]["a:solidFill"];
+                        if(bgFillschemeClr !==undefined){
+                            fillColor = getSolidFill(bgFillschemeClr);
+                            colorOpacity = getColorOpacity(bgFillschemeClr);
+                        }
+                        //borders color
+                        //borders Width
+                        var borderStyl = thisTblStyle["a:wholeTbl"]["a:tcStyle"]["a:tcBdr"];
+                        if(borderStyl !== undefined){
+                            var row_borders = getTableBorders(borderStyl);
+                            rowsStyl += row_borders;
+                        }
+                        //console.log(thisTblStyle["a:wholeTbl"])
+                        
+                        //Text Style - TODO
+                        var rowTxtStyl = thisTblStyle["a:wholeTbl"]["a:tcTxStyle"];
+                        if(rowTxtStyl !== undefined){
+                            
+                        }                        
+                    }*/
+                }else{
+                    if(thisTblStyle["a:band1H"] !==undefined){
+                        var bgFillschemeClr = getTextByPathList(thisTblStyle,["a:band1H","a:tcStyle","a:fill","a:solidFill"]);
+                        if(bgFillschemeClr !==undefined){
+                            fillColor = getSolidFill(bgFillschemeClr);
+                            colorOpacity = getColorOpacity(bgFillschemeClr);
+                        }
+                        //borders color
+                        //borders Width
+                        var borderStyl = getTextByPathList(thisTblStyle,["a:band1H","a:tcStyle","a:tcBdr"]);
+                        if(borderStyl !== undefined){
+                            var row_borders = getTableBorders(borderStyl);
+                            rowsStyl += row_borders;
+                        }
+                        //console.log(thisTblStyle["a:band1H"])
+                        
+                        //Text Style - TODO
+                        var rowTxtStyl = getTextByPathList(thisTblStyle,["a:band1H","a:tcTxStyle"]);
+                        if(rowTxtStyl !== undefined){
+                            
+                        }
+                    }
+                }
+                rowsStyl += " background-color:#" + fillColor +";" + 
+                            " opacity:" + colorOpacity + ";";
+            }
+             tableHtml += "<tr style='"+rowsStyl+"'>";
             ////////////////////////////////////////////////
            
             var tcNodes = trNodes[i]["a:tc"];
@@ -1609,6 +1715,7 @@ function genTable(node, warpObj) {
                     var hMerge = getTextByPathList(tcNodes[j], ["attrs", "hMerge"]);
                     //Cells Style : TODO /////////////Amir
                     //console.log(tcNodes[j]);
+                    //if(j==0 && ())
                     var colWidthParam = getColsGrid[j]["attrs"]["w"];
                     var colStyl = "";
                     if(colWidthParam !== undefined){
@@ -1617,23 +1724,31 @@ function genTable(node, warpObj) {
                     }
                     var getFill = tcNodes[j]["a:tcPr"]["a:solidFill"];
                     var fillColor = "";
+                    var colorOpacity=1;
                     if(getFill !== undefined){
-                        console.log(getFill);
-                        var rgbFillColor = getFill["a:srgbClr"];
-                        if (rgbFillColor === undefined) {
-                            var schemeClrNode = getFill["a:schemeClr"];
-                            if(schemeClrNode !== undefined){
-                                var schemeClr = "a:" + schemeClrNode["attrs"]["val"];    
-                                fillColor = getSchemeColorFromTheme(schemeClr);
-                            }
-                        }else{
-                            fillColor = rgbFillColor["attrs"]["val"]
-                        }
+                        //console.log(getFill);
+                        fillColor = getSolidFill(getFill);
+                        colorOpacity = getColorOpacity(getFill);
                     }else{
-                        //get from Theme TODO
+                        //get from Theme (tableStyles.xml) TODO 
+                        //get tableStyleId = a:tbl => a:tblPr => a:tableStyleId
+                        var tbleStyleId = getTblPr["a:tableStyleId"];
+                        if(tbleStyleId !== undefined){
+                            //get Style from tableStyles.xml by {var tbleStyleId}
+                            //table style object : tableStyles
+                            var tbleStylList = tableStyles["a:tblStyleLst"]["a:tblStyle"];
+                            
+                            for(var k=0;k<tbleStylList.length;k++){
+                                if(tbleStylList[k]["attrs"]["styleId"] == tbleStyleId){
+                                    //console.log(tbleStylList[k]);
+                                }
+                            }
+                        }
+                        //console.log(tbleStyleId);
                     }
                     if(fillColor != ""){
-                        colStyl += " background-color:#" + fillColor +";"
+                        colStyl += " background-color:#" + fillColor +";";
+                        colStyl += " opacity" + colorOpacity +";";
                     }
                     //console.log(fillColor);
                     ////////////////////////////////////
@@ -1658,23 +1773,17 @@ function genTable(node, warpObj) {
                 }
                 var getFill = tcNodes["a:tcPr"]["a:solidFill"];
                 var fillColor = "";
+                var colorOpacity = 1;
                 if(getFill !== undefined){
-                    console.log(getFill);
-                    var rgbFillColor = getFill["a:srgbClr"];
-                    if (rgbFillColor === undefined) {
-                        var schemeClrNode = getFill["a:schemeClr"];
-                        if(schemeClrNode !== undefined){
-                            var schemeClr = "a:" + schemeClrNode["attrs"]["val"];    
-                            fillColor = getSchemeColorFromTheme(schemeClr);
-                        }
-                    }else{
-                        fillColor = rgbFillColor["attrs"]["val"]
-                    }
+                    //console.log(getFill);   
+                    fillColor = getSolidFill(getFill);
+                    colorOpacity = getColorOpacity(getFill);
                 }else{
                     //get from Theme TODO
                 }
                 if(fillColor != ""){
                     colStyl += " background-color:#" + fillColor +";"
+                    colStyl += " opacity" + colorOpacity +";";
                 }                
                 ////////////////////////////////////
                 tableHtml += "<td style='"+colStyl+"'>" + text + "</td>";
@@ -1705,23 +1814,18 @@ function genTable(node, warpObj) {
                 }
                 var getFill = tcNodes[j]["a:tcPr"]["a:solidFill"];
                 var fillColor = "";
-                if(getFill !== undefined){
-                    console.log(getFill);
-                    var rgbFillColor = getFill["a:srgbClr"];
-                    if (rgbFillColor === undefined) {
-                        var schemeClrNode = getFill["a:schemeClr"];
-                        if(schemeClrNode !== undefined){
-                            var schemeClr = "a:" + schemeClrNode["attrs"]["val"];    
-                            fillColor = getSchemeColorFromTheme(schemeClr);
-                        }
-                    }else{
-                        fillColor = rgbFillColor["attrs"]["val"]
-                    }
+                var colorOpacity = 1;
+                if(getFill !== undefined){ 
+                    fillColor = getSolidFill(getFill);
+                    colorOpacity = getColorOpacity(getFill);
                 }else{
                     //get from Theme TODO
+                    //get tableStyleId
+                    // a:tbl => a:tblPr => a:tableStyleId
                 }
                 if(fillColor != ""){
                     colStyl += " background-color:#" + fillColor +";"
+                    colStyl += " opacity" + colorOpacity +";";
                 }                
                 ////////////////////////////////////
                tableHtml += "<td style='"+colStyl+"'>" + text + "</td>";
@@ -1737,23 +1841,17 @@ function genTable(node, warpObj) {
                 }
                 var getFill = tcNodes[j]["a:tcPr"]["a:solidFill"];
                 var fillColor = "";
+                var colorOpacity = 1;
                 if(getFill !== undefined){
-                    console.log(getFill);
-                    var rgbFillColor = getFill["a:srgbClr"];
-                    if (rgbFillColor === undefined) {
-                        var schemeClrNode = getFill["a:schemeClr"];
-                        if(schemeClrNode !== undefined){
-                            var schemeClr = "a:" + schemeClrNode["attrs"]["val"];    
-                            fillColor = getSchemeColorFromTheme(schemeClr);
-                        }
-                    }else{
-                        fillColor = rgbFillColor["attrs"]["val"]
-                    }
+                    //console.log(getFill);
+                     fillColor = getSolidFill(getFill);
+                      colorOpacity = getColorOpacity(getFill);
                 }else{
                     //get from Theme TODO
                 }
                 if(fillColor != ""){
                     colStyl += " background-color:#" + fillColor +";"
+                    colStyl += " opacity" + colorOpacity +";";
                 }                
                 ////////////////////////////////////
                tableHtml += "<td style='"+colStyl+"'>" + text + "</td>";
@@ -1979,22 +2077,12 @@ function getFontType(node, type, slideMasterTextStyles) {
 }
 
 function getFontColor(node, type, slideMasterTextStyles) {
-    var color = getTextByPathStr(node, "a:rPr a:solidFill a:srgbClr attrs val");
+    var solidFillNode = getTextByPathStr(node, "a:rPr a:solidFill");
+
+    var color =   getSolidFill(solidFillNode);
     //console.log(themeContent)
     //var schemeClr = getTextByPathList(buClrNode ,["a:schemeClr", "attrs","val"]);
-    if(color === undefined){
-        var schemeClr = getTextByPathStr(node, "a:rPr a:solidFill a:schemeClr attrs val"); //bg1
-       if(schemeClr !== undefined){
-           color = getSchemeColorFromTheme("a:"+schemeClr);
-       }
-       if(color === undefined){
-            var prstClr = getTextByPathStr(node, "a:rPr a:solidFill a:prstClr attrs val");
-            if(prstClr !== undefined){
-               color = prstClr;
-            }
-       }
-    }
-    return (color === undefined) ? "#000" : "#" + color;
+    return (color === undefined || color === "FFF") ? "#000" : "#" + color;
 }
 function getFontSize(node, slideLayoutSpNode, slideMasterSpNode, type, slideMasterTextStyles) {
     var fontSize = undefined;
@@ -2104,6 +2192,47 @@ function getTextDirection(node, type, slideMasterTextStyles){
 
     return dir;
 }
+function getTableBorders(node){
+    var borderStyle = "";
+    if(node["a:bottom"] !== undefined){
+        var obj = {
+            "p:spPr":{
+                "a:ln":node["a:bottom"]["a:ln"]
+            }
+        }
+        var borders = getBorder(obj, false);
+        borderStyle += borders.replace("border","border-bottom");
+    }
+    if(node["a:top"] !== undefined){
+        var obj = {
+            "p:spPr":{
+                "a:ln":node["a:top"]["a:ln"]
+            }
+        }
+        var borders = getBorder(obj, false);
+        borderStyle += borders.replace("border","border-top");
+    }
+    if(node["a:right"] !== undefined){
+        var obj = {
+            "p:spPr":{
+                "a:ln":node["a:right"]["a:ln"]
+            }
+        }
+        var borders = getBorder(obj, false);
+        borderStyle += borders.replace("border","border-right");
+    }
+    if(node["a:left"] !== undefined){
+        var obj = {
+            "p:spPr":{
+                "a:ln":node["a:left"]["a:ln"]
+            }
+        }
+        var borders = getBorder(obj, false);
+        borderStyle += borders.replace("border","border-left");
+    }
+
+    return borderStyle;
+}
 //////////////////////////////////////////////////////////////////
 function getBorder(node, isSvgMode) {
     
@@ -2121,49 +2250,6 @@ function getBorder(node, isSvgMode) {
     } else {
         cssText += borderWidth + "pt ";
     }
-    
-    // Border color
-    var borderColor = getTextByPathList(lineNode, ["a:solidFill", "a:srgbClr", "attrs", "val"]);
-    if (borderColor === undefined) {
-        var schemeClrNode = getTextByPathList(lineNode, ["a:solidFill", "a:schemeClr"]);
-        if(schemeClrNode !== undefined){
-            var schemeClr = "a:" + getTextByPathList(schemeClrNode, ["attrs", "val"]);    
-            var borderColor = getSchemeColorFromTheme(schemeClr);
-        }
-    }
-    
-    // 2. drawingML namespace
-    if (borderColor === undefined) {
-        var schemeClrNode = getTextByPathList(node, ["p:style", "a:lnRef", "a:schemeClr"]);
-        if(schemeClrNode !== undefined){
-            var schemeClr = "a:" + getTextByPathList(schemeClrNode, ["attrs", "val"]);    
-            var borderColor = getSchemeColorFromTheme(schemeClr);
-        }
-        
-        if (borderColor !== undefined) {
-            var shade = getTextByPathList(schemeClrNode, ["a:shade", "attrs", "val"]);
-            if (shade !== undefined) {
-                shade = parseInt(shade) / 100000;
-                var color = new colz.Color("#" + borderColor);
-                color.setLum(color.hsl.l * shade);
-                borderColor = color.hex.replace("#", "");
-            }
-        }
-        
-    }
-    
-    if (borderColor === undefined) {
-        if (isSvgMode) {
-            borderColor = "none";
-        } else {
-            borderColor = "#000";
-        }
-    } else {
-        borderColor = "#" + borderColor;
-        
-    }
-    cssText += " " + borderColor + " ";
-    
     // Border type
     var borderType = getTextByPathList(lineNode, ["a:prstDash", "attrs", "val"]);
     var strokeDasharray = "0";
@@ -2211,9 +2297,52 @@ function getBorder(node, isSvgMode) {
         case undefined:
             //console.log(borderType);
         default:
-            //console.warn(borderType);
-            //cssText += "#000 solid";
+            cssText += "solid";
+            strokeDasharray = "0";
+    }    
+    // Border color
+    var borderColor = getTextByPathList(lineNode, ["a:solidFill", "a:srgbClr", "attrs", "val"]);
+    if (borderColor === undefined) {
+        var schemeClrNode = getTextByPathList(lineNode, ["a:solidFill", "a:schemeClr"]);
+        if(schemeClrNode !== undefined){
+            var schemeClr = "a:" + getTextByPathList(schemeClrNode, ["attrs", "val"]);    
+            var borderColor = getSchemeColorFromTheme(schemeClr);
+        }
     }
+    
+    // 2. drawingML namespace
+    if (borderColor === undefined) {
+        var schemeClrNode = getTextByPathList(node, ["p:style", "a:lnRef", "a:schemeClr"]);
+        if(schemeClrNode !== undefined){
+            var schemeClr = "a:" + getTextByPathList(schemeClrNode, ["attrs", "val"]);    
+            var borderColor = getSchemeColorFromTheme(schemeClr);
+        }
+        
+        if (borderColor !== undefined) {
+            var shade = getTextByPathList(schemeClrNode, ["a:shade", "attrs", "val"]);
+            if (shade !== undefined) {
+                shade = parseInt(shade) / 100000;
+                var color = new colz.Color("#" + borderColor);
+                color.setLum(color.hsl.l * shade);
+                borderColor = color.hex.replace("#", "");
+            }
+        }
+        
+    }
+    
+    if (borderColor === undefined) {
+        if (isSvgMode) {
+            borderColor = "none";
+        } else {
+            borderColor = "#000";
+        }
+    } else {
+        borderColor = "#" + borderColor;
+        
+    }
+    cssText += " " + borderColor + " ";
+    
+
     
     if (isSvgMode) {
         return {"color": borderColor, "width": borderWidth, "type": borderType, "strokeDasharray": strokeDasharray};
@@ -2300,7 +2429,71 @@ function getShapeFill(node, isSvgMode) {
     }
     
 }
+///////////////////////Amir//////////////////////////////
+function getFillType(node){
+    //Need to test/////////////////////////////////////////////
+    //SOLID_FILL
+    //PIC_FILL
+    //GRADIENT_FILL
+    //PATTERN_FILL
+    //NO_FILL
+    var fillType = "";
+    if (node["a:noFill"] !== undefined) {
+        fillType = "NO_FILL";
+    }
+    if (node["a:solidFill"] !== undefined) {
+        fillType = "SOLID_FILL";
+    }
+    if (node["a:gradFill"] !== undefined) {
+        fillType = "GRADIENT_FILL";
+    }
+    if (node["a:pattFill"] !== undefined) {
+        fillType = "PATTERN_FILL";
+    }
+    if (node["a:blipFill"] !== undefined) {
+        fillType = "PIC_FILL";
+    }
 
+    return fillType;
+}
+function getGradientFill(node){
+    //Need to test/////////////////////////////////////////////
+    var gsLst = node["a:gsLst"]["a:gs"];
+    //get start color
+    var startColor = getSolidFill(gsLst[0]);
+    var startColorOpcty = getColorOpacity(gsLst[0]);
+    //get end color
+    var endColor = getSolidFill(gsLst[gsLst.length-1]);
+    var endColorOpcty = getColorOpacity(gsLst[gsLst.length-1]);    
+    //get rot
+    var lin = node["a:lin"];
+    var rot = 0;
+    if(lin !== undefined){
+        rot = angleToDegrees(lin["ang"]);
+    }
+    return [startColor,startColorOpcty,endColor,endColorOpcty,rot];
+}
+function getPicFill(node,warpObj){
+    //Need to test/////////////////////////////////////////////
+    //rId
+    //TODO - Image Properties - Tile, Stretch, or Display Portion of Image
+        //(http://officeopenxml.com/drwPic-tile.php)
+    var img;
+    var rId = node["a:blip"]["attrs"]["r:embed"];
+    var imgPath =  warpObj["slideResObj"][rId]["target"];
+    var imgArrayBuffer = warpObj["zip"].file(imgPath).asArrayBuffer();
+    var imgExt = imgPath.split(".").pop();
+    var imgMimeType = getImageMimeType(imgExt);
+    img = "<img src='data:" + imgMimeType + ";base64," + base64ArrayBuffer(imgArrayBuffer) + "' style='width: 100%; height: 100%'/>";
+    return img;
+}
+function getPatternFill(node){
+     //Need to test/////////////////////////////////////////////
+    var color = "";
+    var bgClr = node["a:bgClr"];
+    color = getSolidFill(bgClr);
+    return color;
+}
 function getSolidFill(solidFill) {
     
     if (solidFill === undefined) {
@@ -2310,15 +2503,125 @@ function getSolidFill(solidFill) {
     var color = "FFF";
     
     if (solidFill["a:srgbClr"] !== undefined) {
-        color = getTextByPathList(solidFill["a:srgbClr"], ["attrs", "val"]);
+        color = getTextByPathList(solidFill["a:srgbClr"], ["attrs", "val"]); //#...
     } else if (solidFill["a:schemeClr"] !== undefined) {
         var schemeClr = "a:" + getTextByPathList(solidFill["a:schemeClr"], ["attrs", "val"]);
-        color = getSchemeColorFromTheme(schemeClr);
+        color = getSchemeColorFromTheme(schemeClr); //#...
+        
+    }else if(solidFill["a:scrgbClr"] !== undefined){
+         //<a:scrgbClr r="50%" g="50%" b="50%"/>  //Need to test/////////////////////////////////////////////
+        var defBultColorVals = solidFill["a:scrgbClr"]["attrs"];
+        var red = (defBultColorVals["r"].indexOf("%") != -1)?defBultColorVals["r"].split("%").shift():defBultColorVals["r"];
+        var green = (defBultColorVals["g"].indexOf("%") != -1)?defBultColorVals["g"].split("%").shift():defBultColorVals["g"];
+        var blue = (defBultColorVals["b"].indexOf("%") != -1)?defBultColorVals["b"].split("%").shift():defBultColorVals["b"];
+        var scrgbClr = red + "," + green + "," + blue;
+        color = toHex(255*(Number(red)/100)) + toHex(255*(Number(green)/100)) + toHex(255*(Number(blue)/100));
+            //console.log("scrgbClr: " + scrgbClr);
+
+    }else if(solidFill["a:prstClr"] !== undefined){
+        //<a:prstClr val="black"/>  //Need to test/////////////////////////////////////////////
+        var prstClr  = solidFill["a:prstClr"]["attrs"]["val"];
+        color = getColorName2Hex(prstClr);
+        //console.log("prstClr: " + prstClr+" => hexClr: "+color);
+    }else if(solidFill["a:hslClr"] !== undefined){
+        //<a:hslClr hue="14400000" sat="100%" lum="50%"/>  //Need to test/////////////////////////////////////////////
+            var defBultColorVals = solidFill["a:hslClr"]["attrs"];
+            var hue = Number(defBultColorVals["hue"])/100000;
+            var sat = Number((defBultColorVals["sat"].indexOf("%") != -1)?defBultColorVals["sat"].split("%").shift():defBultColorVals["sat"])/100;
+            var lum = Number((defBultColorVals["lum"].indexOf("%") != -1)?defBultColorVals["lum"].split("%").shift():defBultColorVals["lum"])/100;
+            var hslClr = defBultColorVals["hue"] + "," + defBultColorVals["sat"] + "," + defBultColorVals["lum"];
+            var hsl2rgb = hslToRgb(hue, sat, lum);
+            color = toHex(hsl2rgb.r) + toHex(hsl2rgb.g) + toHex(hsl2rgb.b);
+            //defBultColor = cnvrtHslColor2Hex(hslClr); //TODO
+            // console.log("hslClr: " + hslClr);
+    }else if(solidFill["a:sysClr"] !== undefined){
+        //<a:sysClr val="windowText" lastClr="000000"/>  //Need to test/////////////////////////////////////////////
+        var sysClr = getTextByPathList(solidFill,["a:sysClr","attrs","lastClr"]);
+        if(sysClr !== undefined){
+            color = sysClr;
+        }
     }
-    
     return color;
 }
+function toHex(n) {
+  var hex = n.toString(16);
+  while (hex.length < 2) {hex = "0" + hex; }
+  return hex;
+}
+function hslToRgb(hue, sat, light) {
+  var t1, t2, r, g, b;
+  hue = hue / 60;
+  if ( light <= 0.5 ) {
+    t2 = light * (sat + 1);
+  } else {
+    t2 = light + sat - (light * sat);
+  }
+  t1 = light * 2 - t2;
+  r = hueToRgb(t1, t2, hue + 2) * 255;
+  g = hueToRgb(t1, t2, hue) * 255;
+  b = hueToRgb(t1, t2, hue - 2) * 255;
+  return {r : r, g : g, b : b};
+}
+function hueToRgb(t1, t2, hue) {
+  if (hue < 0) hue += 6;
+  if (hue >= 6) hue -= 6;
+  if (hue < 1) return (t2 - t1) * hue + t1;
+  else if(hue < 3) return t2;
+  else if(hue < 4) return (t2 - t1) * (4 - hue) + t1;
+  else return t1;
+}
+function getColorName2Hex(name) {
+    var hex;
+    var colorName =  ['AliceBlue','AntiqueWhite','Aqua','Aquamarine','Azure','Beige','Bisque','Black','BlanchedAlmond','Blue','BlueViolet','Brown','BurlyWood','CadetBlue','Chartreuse','Chocolate','Coral','CornflowerBlue','Cornsilk','Crimson','Cyan','DarkBlue','DarkCyan','DarkGoldenRod','DarkGray','DarkGrey','DarkGreen','DarkKhaki','DarkMagenta','DarkOliveGreen','DarkOrange','DarkOrchid','DarkRed','DarkSalmon','DarkSeaGreen','DarkSlateBlue','DarkSlateGray','DarkSlateGrey','DarkTurquoise','DarkViolet','DeepPink','DeepSkyBlue','DimGray','DimGrey','DodgerBlue','FireBrick','FloralWhite','ForestGreen','Fuchsia','Gainsboro','GhostWhite','Gold','GoldenRod','Gray','Grey','Green','GreenYellow','HoneyDew','HotPink','IndianRed','Indigo','Ivory','Khaki','Lavender','LavenderBlush','LawnGreen','LemonChiffon','LightBlue','LightCoral','LightCyan','LightGoldenRodYellow','LightGray','LightGrey','LightGreen','LightPink','LightSalmon','LightSeaGreen','LightSkyBlue','LightSlateGray','LightSlateGrey','LightSteelBlue','LightYellow','Lime','LimeGreen','Linen','Magenta','Maroon','MediumAquaMarine','MediumBlue','MediumOrchid','MediumPurple','MediumSeaGreen','MediumSlateBlue','MediumSpringGreen','MediumTurquoise','MediumVioletRed','MidnightBlue','MintCream','MistyRose','Moccasin','NavajoWhite','Navy','OldLace','Olive','OliveDrab','Orange','OrangeRed','Orchid','PaleGoldenRod','PaleGreen','PaleTurquoise','PaleVioletRed','PapayaWhip','PeachPuff','Peru','Pink','Plum','PowderBlue','Purple','RebeccaPurple','Red','RosyBrown','RoyalBlue','SaddleBrown','Salmon','SandyBrown','SeaGreen','SeaShell','Sienna','Silver','SkyBlue','SlateBlue','SlateGray','SlateGrey','Snow','SpringGreen','SteelBlue','Tan','Teal','Thistle','Tomato','Turquoise','Violet','Wheat','White','WhiteSmoke','Yellow','YellowGreen'];
+    var colorHex =  ['f0f8ff','faebd7','00ffff','7fffd4','f0ffff','f5f5dc','ffe4c4','000000','ffebcd','0000ff','8a2be2','a52a2a','deb887','5f9ea0','7fff00','d2691e','ff7f50','6495ed','fff8dc','dc143c','00ffff','00008b','008b8b','b8860b','a9a9a9','a9a9a9','006400','bdb76b','8b008b','556b2f','ff8c00','9932cc','8b0000','e9967a','8fbc8f','483d8b','2f4f4f','2f4f4f','00ced1','9400d3','ff1493','00bfff','696969','696969','1e90ff','b22222','fffaf0','228b22','ff00ff','dcdcdc','f8f8ff','ffd700','daa520','808080','808080','008000','adff2f','f0fff0','ff69b4','cd5c5c','4b0082','fffff0','f0e68c','e6e6fa','fff0f5','7cfc00','fffacd','add8e6','f08080','e0ffff','fafad2','d3d3d3','d3d3d3','90ee90','ffb6c1','ffa07a','20b2aa','87cefa','778899','778899','b0c4de','ffffe0','00ff00','32cd32','faf0e6','ff00ff','800000','66cdaa','0000cd','ba55d3','9370db','3cb371','7b68ee','00fa9a','48d1cc','c71585','191970','f5fffa','ffe4e1','ffe4b5','ffdead','000080','fdf5e6','808000','6b8e23','ffa500','ff4500','da70d6','eee8aa','98fb98','afeeee','db7093','ffefd5','ffdab9','cd853f','ffc0cb','dda0dd','b0e0e6','800080','663399','ff0000','bc8f8f','4169e1','8b4513','fa8072','f4a460','2e8b57','fff5ee','a0522d','c0c0c0','87ceeb','6a5acd','708090','708090','fffafa','00ff7f','4682b4','d2b48c','008080','d8bfd8','ff6347','40e0d0','ee82ee','f5deb3','ffffff','f5f5f5','ffff00','9acd32'];
+    var findIndx = colorName.indexOf(name);
+    if(findIndx != -1){
+        hex = colorHex[findIndx];
+    }
+  return hex;
+}
+function getColorOpacity(solidFill){
+    
+    if (solidFill === undefined) {
+        return undefined;
+    }
+    var opcity = 1;
 
+    if (solidFill["a:srgbClr"] !== undefined) {
+        var tint = getTextByPathList(solidFill,["a:srgbClr","a:tint","attrs", "val"]);
+        if(tint !== undefined){
+            opcity =  parseInt(tint) / 100000;
+        }
+    } else if (solidFill["a:schemeClr"] !== undefined) {
+        var tint = getTextByPathList(solidFill,["a:schemeClr","a:tint","attrs", "val"]);
+        if(tint !== undefined){
+            opcity =  parseInt(tint) / 100000;
+        }
+    }else if(solidFill["a:scrgbClr"] !== undefined){
+        var tint = getTextByPathList(solidFill,["a:scrgbClr","a:tint","attrs", "val"]);
+        if(tint !== undefined){
+            opcity =  parseInt(tint) / 100000;
+        }
+
+    }else if(solidFill["a:prstClr"] !== undefined){
+        var tint = getTextByPathList(solidFill,["a:prstClr","a:tint","attrs", "val"]);
+        if(tint !== undefined){
+            opcity =  parseInt(tint) / 100000;
+        }
+    }else if(solidFill["a:hslClr"] !== undefined){
+        var tint = getTextByPathList(solidFill,["a:hslClr","a:tint","attrs", "val"]);
+        if(tint !== undefined){
+            opcity =  parseInt(tint) / 100000;
+        }
+    }else if(solidFill["a:sysClr"] !== undefined){
+        var tint = getTextByPathList(solidFill,["a:sysClr","a:tint","attrs", "val"]);
+        if(tint !== undefined){
+            opcity =  parseInt(tint) / 100000;
+        }
+    }
+
+    return opcity;
+}
 function getSchemeColorFromTheme(schemeClr) {
     //<p:clrMap ...> in slide master
     // e.g. tx2="dk2" bg2="lt2" tx1="dk1" bg1="lt1" slideLayoutClrOvride
