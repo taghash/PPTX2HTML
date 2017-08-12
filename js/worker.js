@@ -206,6 +206,7 @@ function processSingleSlide(zip, sldFileName, index, slideSize) {
     var slideLayoutResContent = readXmlFile(zip, slideLayoutResFilename);
     RelationshipArray = slideLayoutResContent["Relationships"]["Relationship"];
     var masterFilename = "";
+    var layoutResObj = {};
     if (RelationshipArray.constructor === Array) {
         for (var i=0; i<RelationshipArray.length; i++) {
             switch (RelationshipArray[i]["attrs"]["Type"]) {
@@ -213,6 +214,10 @@ function processSingleSlide(zip, sldFileName, index, slideSize) {
                     masterFilename = RelationshipArray[i]["attrs"]["Target"].replace("../", "ppt/");
                     break;
                 default:
+                    layoutResObj[RelationshipArray[i]["attrs"]["Id"]] = {
+                        "type": RelationshipArray[i]["attrs"]["Type"].replace("http://schemas.openxmlformats.org/officeDocument/2006/relationships/", ""),
+                        "target": RelationshipArray[i]["attrs"]["Target"].replace("../", "ppt/")
+                    };
             }
         }
     } else {
@@ -229,6 +234,7 @@ function processSingleSlide(zip, sldFileName, index, slideSize) {
     var slideMasterResContent = readXmlFile(zip, slideMasterResFilename);
     RelationshipArray = slideMasterResContent["Relationships"]["Relationship"];
     var themeFilename = "";
+    var masterResObj = {};
     if (RelationshipArray.constructor === Array) {
         for (var i=0; i<RelationshipArray.length; i++) {
             switch (RelationshipArray[i]["attrs"]["Type"]) {
@@ -236,6 +242,10 @@ function processSingleSlide(zip, sldFileName, index, slideSize) {
                     themeFilename = RelationshipArray[i]["attrs"]["Target"].replace("../", "ppt/");
                     break;
                 default:
+                    masterResObj[RelationshipArray[i]["attrs"]["Id"]] = {
+                        "type": RelationshipArray[i]["attrs"]["Type"].replace("http://schemas.openxmlformats.org/officeDocument/2006/relationships/", ""),
+                        "target": RelationshipArray[i]["attrs"]["Target"].replace("../", "ppt/")
+                    };
             }
         }
     } else {
@@ -254,10 +264,12 @@ function processSingleSlide(zip, sldFileName, index, slideSize) {
         "slideLayoutTables": slideLayoutTables,
         "slideMasterTables": slideMasterTables,
         "slideResObj": slideResObj,
-        "slideMasterTextStyles": slideMasterTextStyles
+        "slideMasterTextStyles": slideMasterTextStyles,
+        "layoutResObj":layoutResObj,
+        "masterResObj":masterResObj
     };
     
-    var bgColor = getSlideBackgroundFill(slideContent, slideLayoutContent, slideMasterContent);
+    var bgColor = getSlideBackgroundFill(slideContent, slideLayoutContent, slideMasterContent,warpObj);
     
     var result = "<section style='width:" + slideSize.width + "px; height:" + slideSize.height + "px;" + bgColor + "'>"
     
@@ -2407,8 +2419,8 @@ function getBorder(node, isSvgMode) {
     }
 }
 
-function getSlideBackgroundFill(slideContent, slideLayoutContent, slideMasterContent) {
-    //console.log(slideLayoutContent)
+function getSlideBackgroundFill(slideContent, slideLayoutContent, slideMasterContent,warpObj) {
+    //console.log(slideContent)
     //getFillType(node)
     var bgPr = getTextByPathList(slideContent, ["p:sld", "p:cSld","p:bg","p:bgPr"]);
     var bgRef = getTextByPathList(slideContent, ["p:sld", "p:cSld","p:bg","p:bgRef"]);
@@ -2417,6 +2429,7 @@ function getSlideBackgroundFill(slideContent, slideLayoutContent, slideMasterCon
     if(bgPr !== undefined){
         //bgcolor = "background-color: blue;";
         var bgFillTyp =  getFillType(bgPr);
+
         if(bgFillTyp == "SOLID_FILL"){
             var sldFill = bgPr["a:solidFill"];
             var bgColor = getSolidFill(sldFill);
@@ -2462,7 +2475,15 @@ function getSlideBackgroundFill(slideContent, slideLayoutContent, slideMasterCon
                     bgcolor += "rgba("+ hexToRgbNew(color_ary[i])+","+ tint_ary[i]+")"+", ";
                 }
                     
-            } 
+            }
+        }else if(bgFillTyp == "PIC_FILL"){
+            var picFillBase64 = getPicFill("slideBg",bgPr["a:blipFill"], warpObj);
+            var ordr = bgPr["attrs"]["order"];
+            //a:srcRect
+            //a:stretch => a:fillRect =>attrs (l:-17000, r:-17000)
+            bgcolor = "background-image: url(" + picFillBase64 + ");  z-index: " + ordr + ";";
+            //console.log(picFillBase64);
+
         }
        //console.log(slideContent,slideMasterContent,color_ary,tint_ary,rot,bgcolor)
     }else if(bgRef !== undefined){
@@ -2602,19 +2623,26 @@ function getSlideBackgroundFill(slideContent, slideLayoutContent, slideMasterCon
                     }
                         
                 } 
+            }else if(bgFillTyp == "PIC_FILL"){
+                //console.log("bgPr",bgPr,"bgFillTyp",bgFillTyp)
+                var picFillBase64 = getPicFill("layoutBg",bgPr["a:blipFill"], warpObj);
+                var ordr = bgPr["attrs"]["order"];
+                //a:srcRect
+                //a:stretch => a:fillRect =>attrs (l:-17000, r:-17000)
+                bgcolor = "background-image: url(" + picFillBase64 + ");  z-index: " + ordr + ";";
+                console.log(warpObj);
+
             }
             //console.log("slideLayoutContent",bgcolor)
         }else if(bgRef !== undefined){
-             bgcolor = "background: yellow;";
+             bgcolor = "background: red;";
         }else{
             bgPr = getTextByPathList(slideMasterContent, ["p:sldMaster", "p:cSld","p:bg","p:bgPr"]);
             bgRef = getTextByPathList(slideMasterContent, ["p:sldMaster", "p:cSld","p:bg","p:bgRef"]);
              
             //console.log("bgRef",bgRef["a:schemeClr"]["attrs"]["val"])
             if(bgPr !== undefined){
-                 bgcolor = "background: yellow;";
                  var bgFillTyp =  getFillType(bgPr);
-                 console.log("bgPr",bgPr,"bgFillTyp",bgFillTyp)
                 if(bgFillTyp == "SOLID_FILL"){
                     var sldFill = bgPr["a:solidFill"];
                     var bgColor = getSolidFill(sldFill);
@@ -2662,7 +2690,17 @@ function getSlideBackgroundFill(slideContent, slideLayoutContent, slideMasterCon
                         }
                             
                     }                     
-                }               
+                }else if(bgFillTyp == "PIC_FILL"){
+                    //console.log("bgPr",bgPr,"bgFillTyp",bgFillTyp)
+                    bgcolor = "background: yellow;";
+                    var picFillBase64 = getPicFill("masterBg",bgPr["a:blipFill"], warpObj);
+                    var ordr = bgPr["attrs"]["order"];
+                    //a:srcRect
+                    //a:stretch => a:fillRect =>attrs (l:-17000, r:-17000)
+                    bgcolor = "background-image: url(" + picFillBase64 + ");  z-index: " + ordr + ";";
+                    //console.log(warpObj);
+
+                }
             }else if(bgRef !== undefined){
                 //var obj={
                 //    "a:solidFill": bgRef
@@ -2749,6 +2787,8 @@ function getSlideBackgroundFill(slideContent, slideLayoutContent, slideMasterCon
                              
                        } 
                       
+                    }else{
+                        console.log(bgFillTyp)
                     }
                 }
             }
@@ -2790,7 +2830,7 @@ function getShapeFill(node, isSvgMode, warpObj) {
         fillColor = getPatternFill(shpFill);
     }else if(fillType == "PIC_FILL"){
         var shpFill = node["p:spPr"]["a:blipFill"];
-        fillColor = getPicFill(shpFill, warpObj);
+        fillColor = getPicFill("slideBg",shpFill, warpObj);
     }
     
 
@@ -2922,16 +2962,29 @@ function getGradientFill(node){
         "rot": rot
     }
 }
-function getPicFill(node,warpObj){
+function getPicFill(type,node,warpObj){
     //Need to test/////////////////////////////////////////////
     //rId
     //TODO - Image Properties - Tile, Stretch, or Display Portion of Image
         //(http://officeopenxml.com/drwPic-tile.php)
     var img;
     var rId = node["a:blip"]["attrs"]["r:embed"];
-    var imgPath =  warpObj["slideResObj"][rId]["target"];
-    var imgArrayBuffer = warpObj["zip"].file(imgPath).asArrayBuffer();
+    var imgPath;
+    if(type=="slideBg"){
+        imgPath =  getTextByPathList(warpObj,["slideResObj",rId,"target"]);
+    }else if(type == "layoutBg"){
+        imgPath =  getTextByPathList(warpObj,["layoutResObj",rId,"target"]);
+    }else if(type=="masterBg"){
+        imgPath =  getTextByPathList(warpObj,["masterResObj",rId,"target"]);
+    }
+    if(imgPath === undefined){
+       return undefined;
+    } 
     var imgExt = imgPath.split(".").pop();
+    if(imgExt=="xml"){
+        return undefined;
+    }    
+    var imgArrayBuffer = warpObj["zip"].file(imgPath).asArrayBuffer();
     var imgMimeType = getImageMimeType(imgExt);
     img = "data:" + imgMimeType + ";base64," + base64ArrayBuffer(imgArrayBuffer);
     return img;
@@ -3258,7 +3311,8 @@ function angleToDegrees(angle) {
 }
 function getImageMimeType(imgFileExt){
     var mimeType = "";
-     switch (imgFileExt) {
+    //console.log(imgFileExt)
+     switch (imgFileExt.toLowerCase()) {
         case "jpg":
         case "jpeg":
             mimeType = "image/jpeg";
@@ -3274,6 +3328,9 @@ function getImageMimeType(imgFileExt){
             break;
         case "wmf": // Not native support
             mimeType = "image/x-wmf";
+            break;
+        case "svg":
+            mimeType = "image/svg+xml";
             break;
         default:
             mimeType = "image/*";
