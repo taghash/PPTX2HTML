@@ -62,8 +62,6 @@ function processPPTX(data) {
 
     tableStyles = readXmlFile(zip, "ppt/tableStyles.xml");
 
-    
-
     self.postMessage({
         "type": "slideSize",
         "data": slideSize
@@ -195,7 +193,7 @@ function processSingleSlide(zip, sldFileName, index, slideSize) {
     var slideLayoutContent = readXmlFile(zip, layoutFilename);
     var slideLayoutTables = indexNodes(slideLayoutContent);
     var sldLayoutClrOvr = slideLayoutContent["p:sldLayout"]["p:clrMapOvr"]["a:overrideClrMapping"];
-    //debug(slideLayoutTables);
+
     //console.log(slideLayoutClrOvride);
     if(sldLayoutClrOvr !== undefined){
         slideLayoutClrOvride = sldLayoutClrOvr["attrs"];
@@ -224,9 +222,30 @@ function processSingleSlide(zip, sldFileName, index, slideSize) {
     var slideMasterContent = readXmlFile(zip, masterFilename);
     var slideMasterTextStyles = getTextByPathList(slideMasterContent, ["p:sldMaster", "p:txStyles"]);
     var slideMasterTables = indexNodes(slideMasterContent);
-    //debug(slideMasterTables);
     
-    
+    /////////////////Amir/////////////
+    //Open slideMasterXX.xml.rels
+    var slideMasterResFilename = masterFilename.replace("slideMasters/slideMaster", "slideMasters/_rels/slideMaster") + ".rels";
+    var slideMasterResContent = readXmlFile(zip, slideMasterResFilename);
+    RelationshipArray = slideMasterResContent["Relationships"]["Relationship"];
+    var themeFilename = "";
+    if (RelationshipArray.constructor === Array) {
+        for (var i=0; i<RelationshipArray.length; i++) {
+            switch (RelationshipArray[i]["attrs"]["Type"]) {
+                case "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme":
+                    themeFilename = RelationshipArray[i]["attrs"]["Target"].replace("../", "ppt/");
+                    break;
+                default:
+            }
+        }
+    } else {
+        themeFilename = RelationshipArray["attrs"]["Target"].replace("../", "ppt/");
+    }
+    //console.log(themeFilename)
+    //Load Theme file
+    if(themeFilename !== undefined){
+        themeContent =  readXmlFile(zip, themeFilename);
+    }
     // =====< Step 3 >=====
     var slideContent = readXmlFile(zip, sldFileName);
     var nodes = slideContent["p:sld"]["p:cSld"]["p:spTree"];
@@ -240,7 +259,7 @@ function processSingleSlide(zip, sldFileName, index, slideSize) {
     
     var bgColor = getSlideBackgroundFill(slideContent, slideLayoutContent, slideMasterContent);
     
-    var result = "<section style='width:" + slideSize.width + "px; height:" + slideSize.height + "px; background-color: #" + bgColor + "'>"
+    var result = "<section style='width:" + slideSize.width + "px; height:" + slideSize.height + "px;" + bgColor + "'>"
     
     for (var nodeKey in nodes) {
         if (nodes[nodeKey].constructor === Array) {
@@ -419,9 +438,6 @@ function processSpNode(node, warpObj) {
         }
     }
     
-    debug( {"id": id, "name": name, "idx": idx, "type": type, "order": order} );
-    //debug( JSON.stringify( node ) );
-    
     return genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, type, order, warpObj);
 }
 
@@ -433,8 +449,6 @@ function processCxnSpNode(node, warpObj) {
     //var type = (node["p:nvCxnSpPr"]["p:nvPr"]["p:ph"] === undefined) ? undefined : node["p:nvSpPr"]["p:nvPr"]["p:ph"]["attrs"]["type"];
     //<p:cNvCxnSpPr>(<p:cNvCxnSpPr>, <a:endCxn>)
     var order = node["attrs"]["order"];
-
-    debug( {"id": id, "name": name, "order": order} );
     
     return genShape(node, undefined, undefined, id, name, undefined, undefined, order, warpObj);
 }
@@ -447,6 +461,8 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
     var slideMasterXfrmNode = getTextByPathList(slideMasterSpNode, xfrmList);
     
     var result = "";
+    var shpId = getTextByPathList(node, ["attrs","order"]);
+    //console.log("shpId: ",shpId)
     var shapType = getTextByPathList(node, ["p:spPr", "a:prstGeom", "attrs", "prst"]);
 
     //custGeom - Amir
@@ -470,19 +486,35 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
         var w = parseInt(ext["cx"]) * 96 / 914400;
         var h = parseInt(ext["cy"]) * 96 / 914400;
         
-
         result += "<svg class='drawing' _id='" + id + "' _idx='" + idx + "' _type='" + type + "' _name='" + name +
                 "' style='" + 
                     getPosition(slideXfrmNode, undefined, undefined) + 
                     getSize(slideXfrmNode, undefined, undefined) +
                     " z-index: " + order + ";" +
                     "transform: rotate(" +rotate+ "deg);"+
-                "'>";
-        
+                    "'>";
+         result += '<defs>'
         // Fill Color
-        var fillColor = getShapeFill(node, true);
-        
-        // Border Color        
+        var fillColor = getShapeFill(node, true,warpObj);
+        var grndFillFlg = false;
+        var imgFillFlg = false;
+        var clrFillType = getFillType(getTextByPathList(node, ["p:spPr"]));
+        /////////////////////////////////////////                    
+        if(clrFillType == "GRADIENT_FILL"){
+            grndFillFlg = true;
+            var color_arry = fillColor.color;
+            var angl = fillColor.rot;
+            var svgGrdnt = getSvgGradient(w,h,angl,color_arry,shpId);
+            //fill="url(#linGrd)"
+            result +=  svgGrdnt ;
+        }else if(clrFillType == "PIC_FILL"){
+            imgFillFlg = true;
+            var svgBgImg = getSvgImagePattern(fillColor,shpId);
+             //fill="url(#imgPtrn)"
+             //console.log(svgBgImg)
+            result +=  svgBgImg ;
+        }        
+        // Border Color
         var border = getBorder(node, true);
         
         var headEndNodeAttrs = getTextByPathList(node, ["p:spPr", "a:ln", "a:headEnd", "attrs"]);
@@ -491,10 +523,11 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
         
         if ( (headEndNodeAttrs !== undefined && (headEndNodeAttrs["type"] === "triangle" || headEndNodeAttrs["type"] === "arrow")) || 
              (tailEndNodeAttrs !== undefined && (tailEndNodeAttrs["type"] === "triangle" || tailEndNodeAttrs["type"] === "arrow")) ) {
-            var triangleMarker = "<defs><marker id=\"markerTriangle\" viewBox=\"0 0 10 10\" refX=\"1\" refY=\"5\" markerWidth=\"5\" markerHeight=\"5\" stroke='" + border.color + "' fill='" + border.color + 
-                            "' orient=\"auto-start-reverse\" markerUnits=\"strokeWidth\"><path d=\"M 0 0 L 10 5 L 0 10 z\" /></marker></defs>";
+            var triangleMarker = "<marker id='markerTriangle_"+shpId+"' viewBox='0 0 10 10' refX='1' refY='5' markerWidth='5' markerHeight='5' stroke='" + border.color + "' fill='" + border.color + 
+                            "' orient='auto-start-reverse' markerUnits='strokeWidth'><path d='M 0 0 L 10 5 L 0 10 z' /></marker>";
             result += triangleMarker;
         }
+         result += '</defs>'
     }
     if (shapType !== undefined && custShapType === undefined) {
         
@@ -642,15 +675,15 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
             case "wedgeRectCallout":
             case "wedgeRoundRectCallout":
             case "rect":
-                result += "<rect x='0' y='0' width='" + w + "' height='" + h + "' fill='" + fillColor + 
+                result += "<rect x='0' y='0' width='" + w + "' height='" + h + "' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                             "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
                 break;
             case "ellipse":
-                result += "<ellipse cx='" + (w / 2) + "' cy='" + (h / 2) + "' rx='" + (w / 2) + "' ry='" + (h / 2) + "' fill='" + fillColor + 
+                result += "<ellipse cx='" + (w / 2) + "' cy='" + (h / 2) + "' rx='" + (w / 2) + "' ry='" + (h / 2) + "' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                             "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
                 break;
             case "roundRect":
-                result += "<rect x='0' y='0' width='" + w + "' height='" + h + "' rx='7' ry='7' fill='" + fillColor + 
+                result += "<rect x='0' y='0' width='" + w + "' height='" + h + "' rx='7' ry='7' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                             "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
                 break;
             case "bentConnector2":    // 直角 (path)
@@ -663,15 +696,15 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                 result += "<path d='" + d + "' stroke='" + border.color + 
                                 "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' fill='none' ";
                 if (headEndNodeAttrs !== undefined && (headEndNodeAttrs["type"] === "triangle" || headEndNodeAttrs["type"] === "arrow")) {
-                    result += "marker-start='url(#markerTriangle)' ";
+                    result += "marker-start='url(#markerTriangle_"+shpId+")' ";
                 }
                 if (tailEndNodeAttrs !== undefined && (tailEndNodeAttrs["type"] === "triangle" || tailEndNodeAttrs["type"] === "arrow")) {
-                    result += "marker-end='url(#markerTriangle)' ";
+                    result += "marker-end='url(#markerTriangle_"+shpId+")' ";
                 }
                 result += "/>";
                 break;
             case "rtTriangle":
-                result += " <polygon points='0 0,0 " + h + ","+w+" "+h+"' fill='" + fillColor + 
+                result += " <polygon points='0 0,0 " + h + ","+w+" "+h+"' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
                 break;
             case "triangle":
@@ -681,11 +714,11 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                     shapAdjst_val = parseInt(shapAdjst.substr(4)) * 96 / 9144000;
                     //console.log("w: "+w+"\nh: "+h+"\nshapAdjst: "+shapAdjst+"\nshapAdjst_val: "+shapAdjst_val);
                 }
-                result += " <polygon points='"+(w*shapAdjst_val)+" 0,0 " + h + ","+w+" "+h+"' fill='" + fillColor + 
+                result += " <polygon points='"+(w*shapAdjst_val)+" 0,0 " + h + ","+w+" "+h+"' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";            
                 break;
             case "diamond":
-                result += " <polygon points='" + (w/2) + " 0,0 " + (h/2) + "," + (w/2)+" "+h+"," + w + " " + (h/2) +"' fill='" + fillColor + 
+                result += " <polygon points='" + (w/2) + " 0,0 " + (h/2) + "," + (w/2)+" "+h+"," + w + " " + (h/2) +"' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
                 break;
             case "trapezoid":
@@ -697,7 +730,7 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                     adjst_val = (adjst*0.5)/max_adj_const;
                    // console.log("w: "+w+"\nh: "+h+"\nshapAdjst: "+shapAdjst+"\nadjst_val: "+adjst_val);
                 }
-                result += " <polygon points='"+(w*adjst_val)+" 0,0 " + h + ","+w+" "+h+","+(1-adjst_val)*w+" 0' fill='" + fillColor + 
+                result += " <polygon points='"+(w*adjst_val)+" 0,0 " + h + ","+w+" "+h+","+(1-adjst_val)*w+" 0' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";    
                 break;
             case "parallelogram":
@@ -714,13 +747,13 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                     adjst_val = adjst/max_adj_const;
                    //console.log("w: "+w+"\nh: "+h+"\nadjst: "+adjst_val+"\nmax_adj_const: "+max_adj_const);
                 }
-                result += " <polygon points='"+adjst_val*w+" 0,0 " + h + ","+(1-adjst_val)*w+" "+h+","+w+" 0' fill='" + fillColor + 
+                result += " <polygon points='"+adjst_val*w+" 0,0 " + h + ","+(1-adjst_val)*w+" "+h+","+w+" 0' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";    
                 break;
 
                 break;
             case "pentagon":
-                result += " <polygon points='" + (0.5*w) + " 0,0 " + (0.375*h) + "," + (0.15*w)+" "+h+"," + 0.85*w + " " + h + "," + w + " " + 0.375*h + "' fill='" + fillColor + 
+                result += " <polygon points='" + (0.5*w) + " 0,0 " + (0.375*h) + "," + (0.15*w)+" "+h+"," + 0.85*w + " " + h + "," + w + " " + 0.375*h + "' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
                 break;
             case "hexagon":
@@ -739,12 +772,12 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                     adjst_val = (adjst*0.5)/max_adj_const;
                     //console.log("w: "+w+"\nh: "+h+"\nadjst: "+adjst_val);
                 }
-                result += " <polygon points='"+(w*adjst_val)+" 0,0 " + (h/2) + ","+(w*adjst_val)+" "+h+","+(1-adjst_val)*w+" "+h+","+w+" "+(h/2)+","+(1-adjst_val)*w+" 0' fill='" + fillColor + 
+                result += " <polygon points='"+(w*adjst_val)+" 0,0 " + (h/2) + ","+(w*adjst_val)+" "+h+","+(1-adjst_val)*w+" "+h+","+w+" "+(h/2)+","+(1-adjst_val)*w+" 0' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";    
                  break;
             case "heptagon":
                 result += " <polygon points='" + (0.5*w) + " 0,"+w/8+" " + h/4 + ",0 "+(5/8)*h+"," + w/4 + " " + h + "," + (3/4)*w + " " +h +","+
-                w+" "+(5/8)*h+","+(7/8)*w+" "+h/4+"' fill='" + fillColor + 
+                w+" "+(5/8)*h+","+(7/8)*w+" "+h/4+"' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
                  break;
             case "octagon":
@@ -757,18 +790,18 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                 var adj2 = (1-adj1);
                 //console.log("adj1: "+adj1+"\nadj2: "+adj2);
                 result += " <polygon points='"+adj1*w+" 0,0 " + adj1*h + ",0 "+ adj2*h+","+adj1*w+" "+h+","+adj2*w+" "+h+","+
-                w+" "+adj2*h+","+w+" "+adj1*h+","+adj2*w+" 0' fill='" + fillColor + 
+                w+" "+adj2*h+","+w+" "+adj1*h+","+adj2*w+" 0' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";    
 
                 break;            
             case "decagon":
                 result += " <polygon points='"+(3/8)*w+" 0,"+w/8+" " + h/8 + ",0 "+ h/2+","+w/8+" "+(7/8)*h+","+(3/8)*w+" "+h+","+
-                    (5/8)*w+" "+h+","+(7/8)*w+" "+(7/8)*h+","+w+" "+h/2+","+(7/8)*w+" "+h/8+","+(5/8)*w+" 0' fill='" + fillColor + 
+                    (5/8)*w+" "+h+","+(7/8)*w+" "+(7/8)*h+","+w+" "+h/2+","+(7/8)*w+" "+h/8+","+(5/8)*w+" 0' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
                 break;
             case "dodecagon":
                 result += " <polygon points='"+(3/8)*w+" 0,"+w/8+" " + h/8 + ",0 "+ (3/8)*h+ ",0 "+ (5/8)*h+","+w/8+" "+(7/8)*h+","+(3/8)*w+" "+h+","+
-                    (5/8)*w+" "+h+","+(7/8)*w+" "+(7/8)*h+","+w+" "+(5/8)*h+","+w+" "+(3/8)*h+","+(7/8)*w+" "+h/8+","+(5/8)*w+" 0' fill='" + fillColor + 
+                    (5/8)*w+" "+h+","+(7/8)*w+" "+(7/8)*h+","+w+" "+(5/8)*h+","+w+" "+(3/8)*h+","+(7/8)*w+" "+h/8+","+(5/8)*w+" 0' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
                 break;
              case "bentConnector3":
@@ -786,10 +819,10 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                             "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' ";
                     }
                     if (headEndNodeAttrs !== undefined && (headEndNodeAttrs["type"] === "triangle" || headEndNodeAttrs["type"] === "arrow")) {
-                        result += "marker-start='url(#markerTriangle)' ";
+                        result += "marker-start='url(#markerTriangle_"+shpId+")' ";
                     }
                     if (tailEndNodeAttrs !== undefined && (tailEndNodeAttrs["type"] === "triangle" || tailEndNodeAttrs["type"] === "arrow")) {
-                        result += "marker-end='url(#markerTriangle)' ";
+                        result += "marker-end='url(#markerTriangle_"+shpId+")' ";
                     }
                     result += "/>";                        
                 }                
@@ -804,9 +837,9 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                 var adj2 = (1-adj1);
                 result += " <polygon points='"+adj1*w+" 0,"+adj1*w+" " + adj1*h + ",0 "+adj1*h+",0 "+adj2*h+","+
                             adj1*w+" "+adj2*h+","+adj1*w+" "+h+","+adj2*w+" "+h+","+adj2*w+" "+adj2*h+","+w+" "+adj2*h+","+
-                            +w+" "+adj1*h+","+adj2*w+" "+adj1*h+","+adj2*w+" 0' fill='" + fillColor + 
+                            +w+" "+adj1*h+","+adj2*w+" "+adj1*h+","+adj2*w+" 0' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";    
-                 
+                //console.log((!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")")) 
                 break;
             case "line":
             case "straightConnector1":
@@ -824,10 +857,10 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                                 "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' ";
                 }
                 if (headEndNodeAttrs !== undefined && (headEndNodeAttrs["type"] === "triangle" || headEndNodeAttrs["type"] === "arrow")) {
-                    result += "marker-start='url(#markerTriangle)' ";
+                    result += "marker-start='url(#markerTriangle_"+shpId+")' ";
                 }
                 if (tailEndNodeAttrs !== undefined && (tailEndNodeAttrs["type"] === "triangle" || tailEndNodeAttrs["type"] === "arrow")) {
-                    result += "marker-end='url(#markerTriangle)' ";
+                    result += "marker-end='url(#markerTriangle_"+shpId+")' ";
                 }
                 result += "/>";
                 break;
@@ -852,7 +885,7 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                //console.log("w: "+w+"\nh: "+h+"\nsAdj1: "+sAdj1_val+"\nsAdj2: "+sAdj2_val);
                 
                 result += " <polygon points='"+w+" "+h/2+","+sAdj2_val*w+" 0," +sAdj2_val*w+" "+sAdj1_val*h+",0 "+sAdj1_val*h+
-                            ",0 "+(1-sAdj1_val)*h+","+sAdj2_val*w+" "+(1-sAdj1_val)*h+", "+sAdj2_val*w+" "+h+"' fill='" + fillColor + 
+                            ",0 "+(1-sAdj1_val)*h+","+sAdj2_val*w+" "+(1-sAdj1_val)*h+", "+sAdj2_val*w+" "+h+"' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";               
                  break;
             case "leftArrow":
@@ -876,7 +909,7 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                 //console.log("w: "+w+"\nh: "+h+"\nsAdj1: "+sAdj1_val+"\nsAdj2: "+sAdj2_val);
 
                 result += " <polygon points='0 "+h/2+","+sAdj2_val*w+" "+h+"," +sAdj2_val*w+" "+(1-sAdj1_val)*h+","+w+" "+(1-sAdj1_val)*h+
-                            ","+w+" "+sAdj1_val*h+","+sAdj2_val*w+" "+sAdj1_val*h+", "+sAdj2_val*w+" 0' fill='" + fillColor + 
+                            ","+w+" "+sAdj1_val*h+","+sAdj2_val*w+" "+sAdj1_val*h+", "+sAdj2_val*w+" 0' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
                 break;
             case "downArrow":
@@ -900,7 +933,7 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                // console.log("w: "+w+"\nh: "+h+"\nsAdj1: "+sAdj1_val+"\nsAdj2: "+sAdj2_val);
                 
                 result += " <polygon points='"+(0.5-sAdj1_val)*w+" 0,"+(0.5-sAdj1_val)*w+" "+(1-sAdj2_val)*h+",0 " +(1-sAdj2_val)*h+","+(w/2)+" "+h+
-                            ","+w+" "+(1-sAdj2_val)*h+","+(0.5+sAdj1_val)*w+" "+(1-sAdj2_val)*h+", "+(0.5+sAdj1_val)*w+" 0' fill='" + fillColor + 
+                            ","+w+" "+(1-sAdj2_val)*h+","+(0.5+sAdj1_val)*w+" "+(1-sAdj2_val)*h+", "+(0.5+sAdj1_val)*w+" 0' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";               
                  break; 
             case "upArrow":
@@ -922,7 +955,7 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                     }
                 }
                 result += " <polygon points='"+(w/2)+" 0,0 "+sAdj2_val*h+"," + (0.5-sAdj1_val)*w + " "+sAdj2_val*h+","+(0.5-sAdj1_val)*w+" "+h+
-                            ","+(0.5+sAdj1_val)*w+" "+h+","+(0.5+sAdj1_val)*w+" "+sAdj2_val*h+", "+w+" "+sAdj2_val*h+"' fill='" + fillColor + 
+                            ","+(0.5+sAdj1_val)*w+" "+h+","+(0.5+sAdj1_val)*w+" "+sAdj2_val*h+", "+w+" "+sAdj2_val*h+"' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";               
                  break;
             case "leftRightArrow":
@@ -947,7 +980,7 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
 
                 result += " <polygon points='0 "+h/2+","+sAdj2_val*w+" "+h+"," +sAdj2_val*w+" "+(1-sAdj1_val)*h+","+(1-sAdj2_val)*w+" "+(1-sAdj1_val)*h+
                             ","+(1-sAdj2_val)*w+" "+h+","+w+" "+h/2+", "+(1-sAdj2_val)*w+" 0,"+(1-sAdj2_val)*w+" "+sAdj1_val*h+","+
-                            sAdj2_val*w+" "+sAdj1_val*h+","+sAdj2_val*w+" 0' fill='" + fillColor + 
+                            sAdj2_val*w+" "+sAdj1_val*h+","+sAdj2_val*w+" 0' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
                 break;
             case "upDownArrow":
@@ -972,7 +1005,7 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
 
                 result += " <polygon points='"+w/2+" 0,0 "+sAdj2_val*h+"," +sAdj1_val*w+" "+sAdj2_val*h+","+sAdj1_val*w+" "+(1-sAdj2_val)*h+
                             ",0 "+(1-sAdj2_val)*h+","+w/2+" "+h+", "+w+" "+(1-sAdj2_val)*h+","+(1-sAdj1_val)*w+" "+(1-sAdj2_val)*h+","+
-                            (1-sAdj1_val)*w+" "+sAdj2_val*h+","+w+" "+sAdj2_val*h+"' fill='" + fillColor + 
+                            (1-sAdj1_val)*w+" "+sAdj2_val*h+","+w+" "+sAdj2_val*h+"' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                     "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' />";
                 break;
             case "bentArrow":
@@ -1102,7 +1135,7 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                 k += 3 ; 
             }
         }
-        result += "<path d='" + d + "' fill='" + fillColor + 
+        result += "<path d='" + d + "' fill='" + (!imgFillFlg?(grndFillFlg?"url(#linGrd_"+shpId+")":fillColor):"url(#imgPtrn_"+shpId+")") + 
                 "' stroke='" + border.color + "' stroke-width='" + border.width + "' stroke-dasharray='" + border.strokeDasharray + "' ";
         if(closeNode !== undefined){
             //console.log("Close shape");
@@ -1111,10 +1144,10 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
             //console.log("Open shape");
             //check and add "marker-start" and "marker-end"
             if (headEndNodeAttrs !== undefined && (headEndNodeAttrs["type"] === "triangle" || headEndNodeAttrs["type"] === "arrow")) {
-                result += "marker-start='url(#markerTriangle)' ";
+                result += "marker-start='url(#markerTriangle_"+shpId+")' ";
             }
             if (tailEndNodeAttrs !== undefined && (tailEndNodeAttrs["type"] === "triangle" || tailEndNodeAttrs["type"] === "arrow")) {
-                result += "marker-end='url(#markerTriangle)' ";
+                result += "marker-end='url(#markerTriangle_"+shpId+")' ";
             } 
              result += "/>";
             
@@ -1146,7 +1179,7 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
                     getPosition(slideXfrmNode, slideLayoutXfrmNode, slideMasterXfrmNode) + 
                     getSize(slideXfrmNode, slideLayoutXfrmNode, slideMasterXfrmNode) + 
                     getBorder(node, false) +
-                    getShapeFill(node, false) +
+                    getShapeFill(node, false,warpObj) +
                     " z-index: " + order + ";" +
                     "transform: rotate(" +rotate+ "deg);"+
                 "'>";
@@ -1164,7 +1197,6 @@ function genShape(node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, typ
 
 function processPicNode(node, warpObj) {
     
-    //debug( JSON.stringify( node ) );
     
     var order = node["attrs"]["order"];
     
@@ -1182,7 +1214,7 @@ function processPicNode(node, warpObj) {
     return "<div class='block content' style='" + getPosition(xfrmNode, undefined, undefined) + getSize(xfrmNode, undefined, undefined) +
             " z-index: " + order + ";" +
             "transform: rotate(" +rotate+ "deg);"+
-            "'><img src=\"data:" + mimeType + ";base64," + base64ArrayBuffer(imgArrayBuffer) + "\" style='width: 100%; height: 100%'/></div>";
+            "'><img src='data:" + mimeType + ";base64," + base64ArrayBuffer(imgArrayBuffer) + "' style='width: 100%; height: 100%'/></div>";
 }
 
 function processGraphicFrameNode(node, warpObj) {
@@ -1238,27 +1270,26 @@ function genTextBody(textBodyNode, slideLayoutSpNode, slideMasterSpNode, type, w
     }
     //rtl : <p:txBody>
     //          <a:bodyPr wrap="square" rtlCol="1">
-    var isRTL = textBodyNode["a:bodyPr"]["attrs"]["rtlCol"];
-    var rtlStr = "";
-    if(isRTL !== undefined && isRTL=="1"){
-        //rtlStr = "dir='rtl'"
-    }
+    
+    //var rtlStr = "";
     if (textBodyNode["a:p"].constructor === Array) {
         // multi p
         for (var i=0; i<textBodyNode["a:p"].length; i++) {
             var pNode = textBodyNode["a:p"][i];
             var rNode = pNode["a:r"];
-            //dir='rtl'
-            text += "<div "+rtlStr+" class='" + getHorizontalAlign(pNode, slideLayoutSpNode, slideMasterSpNode, type, slideMasterTextStyles) + "'>";
+            
+            //var isRTL = getTextDirection(pNode, type, slideMasterTextStyles);
+            //rtlStr = "";//"dir='"+isRTL+"'";
+
+            text += "<div  class='" + getHorizontalAlign(pNode, slideLayoutSpNode, slideMasterSpNode, type, slideMasterTextStyles) + "'>";
             text += genBuChar(pNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
+
             if (rNode === undefined) {
                 // without r
-                //text += genBuChar(pNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
                 text += genSpanElement(pNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
             } else if (rNode.constructor === Array) {
                 // with multi r
                 for (var j=0; j<rNode.length; j++) {
-                    //text += genBuChar(rNode[j], slideLayoutSpNode, slideMasterSpNode, type, warpObj);
                     text += genSpanElement(rNode[j], slideLayoutSpNode, slideMasterSpNode, type, warpObj);
                     //////////////////Amir////////////
                     if(pNode["a:br"] !== undefined){
@@ -1268,7 +1299,6 @@ function genTextBody(textBodyNode, slideLayoutSpNode, slideMasterSpNode, type, w
                 }
             } else {
                 // with one r
-                //text += genBuChar(rNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
                 text += genSpanElement(rNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
             }
             text += "</div>";
@@ -1277,16 +1307,18 @@ function genTextBody(textBodyNode, slideLayoutSpNode, slideMasterSpNode, type, w
         // one p
         var pNode = textBodyNode["a:p"];
         var rNode = pNode["a:r"];
+
+        //var isRTL = getTextDirection(pNode, type, slideMasterTextStyles);
+        //rtlStr = "";//"dir='"+isRTL+"'";
+
         text += "<div class='slide-prgrph " + getHorizontalAlign(pNode, slideLayoutSpNode, slideMasterSpNode, type, slideMasterTextStyles) + "'>";
         text += genBuChar(pNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
         if (rNode === undefined) {
             // without r
-            //text += genBuChar(pNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
             text += genSpanElement(pNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
         } else if (rNode.constructor === Array) {
             // with multi r
             for (var j=0; j<rNode.length; j++) {
-                //text += genBuChar(rNode[j], slideLayoutSpNode, slideMasterSpNode, type, warpObj);
                 text += genSpanElement(rNode[j], slideLayoutSpNode, slideMasterSpNode, type, warpObj);
                 //////////////////Amir////////////
                 if(pNode["a:br"] !== undefined){
@@ -1296,7 +1328,6 @@ function genTextBody(textBodyNode, slideLayoutSpNode, slideMasterSpNode, type, w
             }
         } else {
             // with one r
-            //text += genBuChar(rNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
             text += genSpanElement(rNode, slideLayoutSpNode, slideMasterSpNode, type, warpObj);
         }
         text += "</div>";
@@ -1318,14 +1349,21 @@ function genBuChar(node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
         dfltBultColor = getFontColor(node, type, sldMstrTxtStyles);
         dfltBultSize = getFontSize(node, slideLayoutSpNode, slideMasterSpNode, type, sldMstrTxtStyles);         
     }
-    //console.log("Bullet Size: " + bultSize); 
+    //console.log("Bullet Size: " + bultSize);
+    
     var bullet = "";
     /////////////////////////////////////////////////////////////////
 
     
     var pPrNode = node["a:pPr"];
     
-    //debug(JSON.stringify(pPrNode))
+    //////////////////cheke if is rtl ///Amir ////////////////////////////////////
+    var getRtlVal = getTextByPathList(pPrNode, ["attrs", "rtl"])
+    var isRTL = false;
+    if(getRtlVal !== undefined && getRtlVal=="1"){
+        isRTL = true;
+    }
+    ////////////////////////////////////////////////////////////
     
     var lvl = parseInt( getTextByPathList(pPrNode, ["attrs", "lvl"]) );
     if (isNaN(lvl)) {
@@ -1397,13 +1435,16 @@ function genBuChar(node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
                 marginRight = 0;
             }
             var typeface = buFontAttrs["typeface"];
-           
+
             bullet =  "<span style='font-family: " + typeface + 
                     "; margin-left: " + marginLeft * lvl + "px" +
                     "; margin-right: " + marginRight + "px" +
                     ";color:" + bultColor + 
-                    ";font-size:" + bultSize +";"+ 
-                    "'>" + buChar + "</span>";
+                    ";font-size:" + bultSize +";";
+            if(isRTL){
+                bullet += " float: right;  direction:rtl"; 
+            }
+            bullet +="'>" + buChar + "</span>";
         } else {
             marginLeft = 328600 * 96 / 914400 * lvl;
             
@@ -1425,11 +1466,22 @@ function genBuChar(node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
             bullet =  "<span style='margin-left: " + marginLeft * lvl + "px" +
                     "; margin-right: " + marginRight + "px" +
                     ";color:" + bultColor + 
-                    ";font-size:" + bultSize +";"+ 
-                    "' data-bulltname = '" + buNum + "' data-bulltlvl = '" + lvl + "' class='numeric-bullet-style'></span>";
+                    ";font-size:" + bultSize +";";
+            if(isRTL){
+                bullet += " float: right; direction:rtl;"; 
+            }else{
+                bullet += " float: left; direction:ltr;";
+            }
+            bullet += "' data-bulltname = '" + buNum + "' data-bulltlvl = '" + lvl + "' class='numeric-bullet-style'></span>";
         } else {
             marginLeft = 328600 * 96 / 914400 * lvl;
-            bullet =  "<span style='margin-left: " + marginLeft + "px;' data-bulltname = '" + buNum + "' data-bulltlvl = '" + lvl + "' class='numeric-bullet-style'></span>";
+            bullet =  "<span style='margin-left: " + marginLeft + "px;";
+            if(isRTL){
+                bullet += " float: right; direction:rtl;"; 
+            }else{
+                bullet += " float: left; direction:ltr;";
+            }
+            bullet += "' data-bulltname = '" + buNum + "' data-bulltlvl = '" + lvl + "' class='numeric-bullet-style'></span>";
         }
        
     }else if(buType == "TYPE_BULPIC"){ //PIC BULLET
@@ -1467,8 +1519,11 @@ function genBuChar(node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
         }
         bullet =  "<span style='margin-left: " + marginLeft * lvl + "px" +
                     "; margin-right: " + marginRight + "px" +
-                    ";width:" + bultSize +";display: inline-block; "+ 
-                     "'>"+buImg+"  </span>";
+                    ";width:" + bultSize +";display: inline-block; ";
+        if(isRTL){
+            bullet += " float: right;direction:rtl"; 
+        }             
+        bullet += "'>"+buImg+"  </span>";
          //////////////////////////////////////////////////////////////////////////////////////
     } else {
         bullet =  "<span style='margin-left: " + 328600 * 96 / 914400 * lvl + "px" +
@@ -1487,7 +1542,6 @@ function  genSpanElement(node, slideLayoutSpNode, slideMasterSpNode, type, warpO
         text = getTextByPathList(node, ["a:fld", "a:t"]);
         if (typeof text !== 'string') {
             text = "&nbsp;";
-            //debug("XXX: " + JSON.stringify(node));
         }
     }
     
@@ -1500,9 +1554,14 @@ function  genSpanElement(node, slideLayoutSpNode, slideMasterSpNode, type, warpO
         ";text-decoration:" + getFontDecoration(node, type, slideMasterTextStyles) +
         ";text-align:" + getTextHorizontalAlign(node, type, slideMasterTextStyles) + 
         ";vertical-align:" + getTextVerticalAlign(node, type, slideMasterTextStyles) + 
-        ";direction:" + getTextDirection(node, type, slideMasterTextStyles) + 
         ";";
-
+    //////////////////Amir///////////////
+     var highlight = getTextByPathList(node, ["a:rPr", "a:highlight"]);
+     if(highlight !== undefined){
+        styleText += "background-color:#" + getSolidFill(highlight) +";";
+        styleText += "Opacity:"+ getColorOpacity(highlight) + ";";
+     }
+    ///////////////////////////////////////////
     var cssName = "";
     
     if (styleText in styleTable) {
@@ -1618,8 +1677,7 @@ function genTable(node, warpObj) {
                         ";font-style:" + getFontItalic(node, type, slideMasterTextStyles) + 
                         ";text-decoration:" + getFontDecoration(node, type, slideMasterTextStyles) +
                         ";text-align:" + getTextHorizontalAlign(node, type, slideMasterTextStyles) + 
-                        ";vertical-align:" + getTextVerticalAlign(node, type, slideMasterTextStyles) + 
-                        ";direction:" + getTextDirection(node, type, slideMasterTextStyles) + 
+                        ";vertical-align:" + getTextVerticalAlign(node, type, slideMasterTextStyles) +
                         ";";
                         */
                     }
@@ -1964,9 +2022,6 @@ function genDiagram(node, warpObj) {
 
 function getPosition(slideSpNode, slideLayoutSpNode, slideMasterSpNode) {
     
-    //debug(JSON.stringify(slideLayoutSpNode));
-    //debug(JSON.stringify(slideMasterSpNode));
-    
     var off = undefined;
     var x = -1, y = -1;
     
@@ -1990,9 +2045,6 @@ function getPosition(slideSpNode, slideLayoutSpNode, slideMasterSpNode) {
 
 function getSize(slideSpNode, slideLayoutSpNode, slideMasterSpNode) {
     
-    //debug(JSON.stringify(slideLayoutSpNode));
-    //debug(JSON.stringify(slideMasterSpNode));
-    
     var ext = undefined;
     var w = -1, h = -1;
     
@@ -2015,7 +2067,7 @@ function getSize(slideSpNode, slideLayoutSpNode, slideMasterSpNode) {
 }
 
 function getHorizontalAlign(node, slideLayoutSpNode, slideMasterSpNode, type, slideMasterTextStyles) {
-    //debug(node);
+
     var algn = getTextByPathList(node, ["a:pPr", "attrs", "algn"]);
     if (algn === undefined) {
         algn = getTextByPathList(slideLayoutSpNode, ["p:txBody", "a:p", "a:pPr", "attrs", "algn"]);
@@ -2180,16 +2232,22 @@ function getTextVerticalAlign(node, type, slideMasterTextStyles) {
 }
 ///////////////////////////////////Amir/////////////////////////////
 function getTextDirection(node, type, slideMasterTextStyles){
-    var isDir = getTextByPathList(node, ["a:pPr", "attrs", "rtl"]);
+    //get lvl
+   var pprLvl = getTextByPathList(node, ["a:pPr", "attrs", "lvl"]);
+    var pprLvlNum = pprLvl===undefined?1:Number(pprLvl)+1;
+    var lvlNode = "a:lvl"+pprLvlNum+"pPr";
+    var pprAlgn = getTextByPathList(node, ["a:pPr", "attrs", "algn"]);
+    var isDir = getTextByPathList(slideMasterTextStyles, ["p:bodyStyle",lvlNode, "attrs", "rtl"]);
+    //var tmp = getTextByPathList(node, ["a:r", "a:t"]);
     var dir = "";
     if (isDir !== undefined){
-        if(isDir=="1"){
+        if(isDir=="1" && (pprAlgn ===undefined || pprAlgn =="r")){
             dir = "rtl";
         }else{ //isDir =="0"
             dir = "ltr";
         }
     }
-
+    //console.log(tmp,isDir,pprAlgn,dir)
     return dir;
 }
 function getTableBorders(node){
@@ -2235,8 +2293,6 @@ function getTableBorders(node){
 }
 //////////////////////////////////////////////////////////////////
 function getBorder(node, isSvgMode) {
-    
-    //debug(JSON.stringify(node));
     
     var cssText = "border: ";
     
@@ -2306,7 +2362,7 @@ function getBorder(node, isSvgMode) {
         var schemeClrNode = getTextByPathList(lineNode, ["a:solidFill", "a:schemeClr"]);
         if(schemeClrNode !== undefined){
             var schemeClr = "a:" + getTextByPathList(schemeClrNode, ["attrs", "val"]);    
-            var borderColor = getSchemeColorFromTheme(schemeClr);
+            var borderColor = getSchemeColorFromTheme(schemeClr,undefined);
         }
     }
     
@@ -2315,7 +2371,7 @@ function getBorder(node, isSvgMode) {
         var schemeClrNode = getTextByPathList(node, ["p:style", "a:lnRef", "a:schemeClr"]);
         if(schemeClrNode !== undefined){
             var schemeClr = "a:" + getTextByPathList(schemeClrNode, ["attrs", "val"]);    
-            var borderColor = getSchemeColorFromTheme(schemeClr);
+            var borderColor = getSchemeColorFromTheme(schemeClr,undefined);
         }
         
         if (borderColor !== undefined) {
@@ -2352,78 +2408,443 @@ function getBorder(node, isSvgMode) {
 }
 
 function getSlideBackgroundFill(slideContent, slideLayoutContent, slideMasterContent) {
-    var bgColor = getSolidFill( getTextByPathList(slideContent, ["p:sld", "p:cSld", "p:bg", "p:bgPr", "a:solidFill"]) );
-    if (bgColor === undefined) {
-        bgColor = getSolidFill( getTextByPathList(slideLayoutContent, ["p:sldLayout", "p:cSld", "p:bg", "p:bgPr", "a:solidFill"]) );
-        if (bgColor === undefined) {
-            bgColor = getSolidFill( getTextByPathList(slideMasterContent, ["p:sldMaster", "p:cSld", "p:bg", "p:bgPr", "a:solidFill"]) );
-            if (bgColor === undefined) {
-                bgColor = "FFF";
+    //console.log(slideLayoutContent)
+    //getFillType(node)
+    var bgPr = getTextByPathList(slideContent, ["p:sld", "p:cSld","p:bg","p:bgPr"]);
+    var bgRef = getTextByPathList(slideContent, ["p:sld", "p:cSld","p:bg","p:bgRef"]);
+    var bgcolor;
+    
+    if(bgPr !== undefined){
+        //bgcolor = "background-color: blue;";
+        var bgFillTyp =  getFillType(bgPr);
+        if(bgFillTyp == "SOLID_FILL"){
+            var sldFill = bgPr["a:solidFill"];
+            var bgColor = getSolidFill(sldFill);
+            var sldTint =  getColorOpacity(sldFill);
+            bgcolor =  "background: rgba("+ hexToRgbNew(bgColor)+","+ sldTint+");";
+            
+        }else if(bgFillTyp == "GRADIENT_FILL"){
+            var grdFill = bgPr["a:gradFill"];
+            //var grdFillVals =  getGradientFill(grdFill);
+                //console.log("grdFillVals",grdFillVals)
+            var gsLst = grdFill["a:gsLst"]["a:gs"];
+            //get start color
+            var startColorNode , endColorNode;
+            var color_ary = [];
+            var tint_ary = [];
+            for(var i=0;i<gsLst.length;i++){
+                var lo_tint;
+                var lo_color;
+                if (gsLst[i]["a:srgbClr"] !== undefined) {
+                    lo_color = getTextByPathList(gsLst[i],["a:srgbClr","attrs", "val"]); //#...
+                    lo_tint = getTextByPathList(gsLst[i],["a:srgbClr","a:tint","attrs","val"]);
+                }else if(gsLst[i]["a:schemeClr"] !== undefined) { //a:schemeClr
+                    var schemeClr = getTextByPathList(gsLst[i],["a:schemeClr","attrs", "val"]);
+                    lo_color = getSchemeColorFromTheme("a:" + schemeClr,slideMasterContent); //#...
+                    lo_tint = getTextByPathList(gsLst[i],["a:schemeClr","a:tint","attrs","val"]);
+                    //console.log("schemeClr",schemeClr,slideMasterContent)
+                }
+                //console.log("lo_color",lo_color)
+                color_ary[i] =  lo_color;
+                tint_ary[i] = (lo_tint !==undefined)?parseInt(lo_tint) / 100000:1;
+            }
+            //get rot
+            var lin = grdFill["a:lin"];
+            var rot = 90;
+            if(lin !== undefined){
+                rot = angleToDegrees(lin["attrs"]["ang"]) + 90;
+            }
+            bgcolor =  "background: linear-gradient("+rot+"deg,";
+            for(var i=0;i<gsLst.length;i++){
+                if(i==gsLst.length-1){
+                    bgcolor += "rgba("+ hexToRgbNew(color_ary[i])+","+ tint_ary[i]+")"+");";
+                }else{
+                    bgcolor += "rgba("+ hexToRgbNew(color_ary[i])+","+ tint_ary[i]+")"+", ";
+                }
+                    
+            } 
+        }
+       //console.log(slideContent,slideMasterContent,color_ary,tint_ary,rot,bgcolor)
+    }else if(bgRef !== undefined){
+        //console.log("slideContent",bgRef)
+        var phClr;
+        if (bgRef["a:srgbClr"] !== undefined) {
+            phClr = getTextByPathList(bgRef,["a:srgbClr","attrs", "val"]); //#...
+        }else if(bgRef["a:schemeClr"] !== undefined) { //a:schemeClr
+            var schemeClr = getTextByPathList(bgRef,["a:schemeClr","attrs", "val"]);
+            phClr = getSchemeColorFromTheme("a:" + schemeClr,slideMasterContent); //#...
+            //console.log("schemeClr",schemeClr,"phClr=",phClr)
+        }
+        var idx = Number(bgRef["attrs"]["idx"]);
+       
+
+        if(idx == 0 || idx==1000){
+            //no background
+        }else if(idx > 0 && idx < 1000){
+            //fillStyleLst in themeContent
+            //themeContent["a:fmtScheme"]["a:fillStyleLst"]
+                //bgcolor = "background: red;";
+        }else if(idx > 1000 ){
+            //bgFillStyleLst  in themeContent
+            //themeContent["a:fmtScheme"]["a:bgFillStyleLst"]
+            var trueIdx = idx - 1000;
+            var bgFillLst = themeContent["a:theme"]["a:themeElements"]["a:fmtScheme"]["a:bgFillStyleLst"];
+            var sortblAry = [];
+            Object.keys(bgFillLst).forEach(function(key) {
+                var bgFillLstTyp = bgFillLst[key];
+                if(key != "attrs"){
+                    if(bgFillLstTyp.constructor === Array ){
+                        for(var i=0;i<bgFillLstTyp.length;i++){
+                            var obj = {};
+                            obj[key] = bgFillLstTyp[i];
+                            obj["idex"] = bgFillLstTyp[i]["attrs"]["order"];
+                            sortblAry.push(obj)
+                        }
+                    }else{
+                        var obj = {};
+                        obj[key] = bgFillLstTyp;
+                        obj["idex"] = bgFillLstTyp["attrs"]["order"];
+                        sortblAry.push(obj)
+                    }
+                }
+            });
+            var sortByOrder = sortblAry.slice(0);
+            sortByOrder.sort(function(a,b) {
+                return a.idex - b.idex;
+            });
+            var bgFillLstIdx = sortByOrder[trueIdx-1];
+            var bgFillTyp =  getFillType(bgFillLstIdx);
+            if(bgFillTyp == "SOLID_FILL"){
+                var sldFill = bgFillLstIdx["a:solidFill"];
+                //var sldBgColor = getSolidFill(sldFill);
+                var sldTint =  getColorOpacity(sldFill);
+                    bgcolor =  "background: rgba("+ hexToRgbNew(phClr)+","+ sldTint+");";
+                    //console.log("slideMasterContent - sldFill",sldFill)
+            }else if(bgFillTyp == "GRADIENT_FILL"){
+                var grdFill = bgFillLstIdx["a:gradFill"];
+                var gsLst = grdFill["a:gsLst"]["a:gs"];
+                //get start color
+                var startColorNode , endColorNode;
+                var tint_ary = [];
+                for(var i=0;i<gsLst.length;i++){
+                    var lo_tint = getTextByPathList(gsLst[i],["a:schemeClr","a:tint","attrs","val"]);
+                    tint_ary[i] = (lo_tint !==undefined)?parseInt(lo_tint) / 100000:1;
+                }
+                //console.log("gsLst",gsLst)
+                //get rot
+                var lin = grdFill["a:lin"];
+                var rot = 90;
+                if(lin !== undefined){
+                    rot = angleToDegrees(lin["attrs"]["ang"]) + 90;
+                }
+                bgcolor =  "background: linear-gradient("+rot+"deg,";
+                for(var i=0;i<gsLst.length;i++){
+                    if(i==gsLst.length-1){
+                        bgcolor += "rgba("+ hexToRgbNew(phClr)+","+ tint_ary[i]+")"+");";
+                    }else{
+                        bgcolor += "rgba("+ hexToRgbNew(phClr)+","+ tint_ary[i]+")"+", ";
+                    }
+                        
+                } 
+            }
+        }
+        
+    }else{
+        bgPr = getTextByPathList(slideLayoutContent, ["p:sldLayout", "p:cSld","p:bg","p:bgPr"]);
+        bgRef = getTextByPathList(slideLayoutContent, ["p:sldLayout", "p:cSld","p:bg","p:bgRef"]);
+        //console.log("slideLayoutContent",bgPr,bgRef)
+        if(bgPr !== undefined){
+            var bgFillTyp =  getFillType(bgPr);
+            if(bgFillTyp == "SOLID_FILL"){
+                var sldFill = bgPr["a:solidFill"];
+                var bgColor = getSolidFill(sldFill);
+                var sldTint =  getColorOpacity(sldFill);
+                bgcolor =  "background: rgba("+ hexToRgbNew(bgColor)+","+ sldTint+");";
+            }else if(bgFillTyp == "GRADIENT_FILL"){
+                var grdFill = bgPr["a:gradFill"];
+                //var grdFillVals =  getGradientFill(grdFill);
+                    //console.log("grdFillVals",grdFillVals)
+                var gsLst = grdFill["a:gsLst"]["a:gs"];
+                //get start color
+                var startColorNode , endColorNode;
+                var color_ary = [];
+                var tint_ary = [];
+                for(var i=0;i<gsLst.length;i++){
+                    var lo_tint;
+                    var lo_color;
+                    if (gsLst[i]["a:srgbClr"] !== undefined) {
+                        lo_color = getTextByPathList(gsLst[i],["a:srgbClr","attrs", "val"]); //#...
+                        lo_tint = getTextByPathList(gsLst[i],["a:srgbClr","a:tint","attrs","val"]);
+                    }else if(gsLst[i]["a:schemeClr"] !== undefined) { //a:schemeClr
+                        var schemeClr = getTextByPathList(gsLst[i],["a:schemeClr","attrs", "val"]);
+                        lo_color = getSchemeColorFromTheme("a:" + schemeClr,slideMasterContent); //#...
+                        lo_tint = getTextByPathList(gsLst[i],["a:schemeClr","a:tint","attrs","val"]);
+                        //console.log("schemeClr",schemeClr,slideMasterContent)
+                    }
+                    //console.log("lo_color",lo_color)
+                    color_ary[i] =  lo_color;
+                    tint_ary[i] = (lo_tint !==undefined)?parseInt(lo_tint) / 100000:1;
+                }
+                //console.log("color_ary",color_ary,"tint_ary",tint_ary)
+                //get rot
+                var lin = grdFill["a:lin"];
+                var rot = 90;
+                if(lin !== undefined){
+                    rot = angleToDegrees(lin["attrs"]["ang"]) + 90;
+                }
+
+                bgcolor =  "background: linear-gradient("+rot+"deg,";
+                for(var i=0;i<gsLst.length;i++){
+                    if(i==gsLst.length-1){
+                        bgcolor += "rgba("+ hexToRgbNew(color_ary[i])+","+ tint_ary[i]+")"+");";
+                    }else{
+                        bgcolor += "rgba("+ hexToRgbNew(color_ary[i])+","+ tint_ary[i]+")"+", ";
+                    }
+                        
+                } 
+            }
+            //console.log("slideLayoutContent",bgcolor)
+        }else if(bgRef !== undefined){
+             bgcolor = "background: yellow;";
+        }else{
+            bgPr = getTextByPathList(slideMasterContent, ["p:sldMaster", "p:cSld","p:bg","p:bgPr"]);
+            bgRef = getTextByPathList(slideMasterContent, ["p:sldMaster", "p:cSld","p:bg","p:bgRef"]);
+             
+            //console.log("bgRef",bgRef["a:schemeClr"]["attrs"]["val"])
+            if(bgPr !== undefined){
+                 bgcolor = "background: yellow;";
+                 var bgFillTyp =  getFillType(bgPr);
+                 console.log("bgPr",bgPr,"bgFillTyp",bgFillTyp)
+                if(bgFillTyp == "SOLID_FILL"){
+                    var sldFill = bgPr["a:solidFill"];
+                    var bgColor = getSolidFill(sldFill);
+                    var sldTint =  getColorOpacity(sldFill);
+                    bgcolor =  "background: rgba("+ hexToRgbNew(bgColor)+","+ sldTint+");";
+                }else if(bgFillTyp == "GRADIENT_FILL"){
+                    var grdFill = bgPr["a:gradFill"];
+                    //var grdFillVals =  getGradientFill(grdFill);
+                        //console.log("grdFillVals",grdFillVals)
+                    var gsLst = grdFill["a:gsLst"]["a:gs"];
+                    //get start color
+                    var startColorNode , endColorNode;
+                    var color_ary = [];
+                    var tint_ary = [];
+                    for(var i=0;i<gsLst.length;i++){
+                        var lo_tint;
+                        var lo_color;
+                        if (gsLst[i]["a:srgbClr"] !== undefined) {
+                            lo_color = getTextByPathList(gsLst[i],["a:srgbClr","attrs", "val"]); //#...
+                            lo_tint = getTextByPathList(gsLst[i],["a:srgbClr","a:tint","attrs","val"]);
+                        }else if(gsLst[i]["a:schemeClr"] !== undefined) { //a:schemeClr
+                            var schemeClr = getTextByPathList(gsLst[i],["a:schemeClr","attrs", "val"]);
+                            lo_color = getSchemeColorFromTheme("a:" + schemeClr,slideMasterContent); //#...
+                            lo_tint = getTextByPathList(gsLst[i],["a:schemeClr","a:tint","attrs","val"]);
+                            //console.log("schemeClr",schemeClr,slideMasterContent)
+                        }
+                        //console.log("lo_color",lo_color)
+                        color_ary[i] =  lo_color;
+                        tint_ary[i] = (lo_tint !==undefined)?parseInt(lo_tint) / 100000:1;
+                    }
+                    //console.log("color_ary",color_ary,"tint_ary",tint_ary)
+                    //get rot
+                    var lin = grdFill["a:lin"];
+                    var rot = 90;
+                    if(lin !== undefined){
+                        rot = angleToDegrees(lin["attrs"]["ang"]) + 90;
+                    }
+
+                    bgcolor =  "background: linear-gradient("+rot+"deg,";
+                    for(var i=0;i<gsLst.length;i++){
+                        if(i==gsLst.length-1){
+                            bgcolor += "rgba("+ hexToRgbNew(color_ary[i])+","+ tint_ary[i]+")"+");";
+                        }else{
+                            bgcolor += "rgba("+ hexToRgbNew(color_ary[i])+","+ tint_ary[i]+")"+", ";
+                        }
+                            
+                    }                     
+                }               
+            }else if(bgRef !== undefined){
+                //var obj={
+                //    "a:solidFill": bgRef
+                //}
+                //var phClr = getSolidFill(bgRef);
+                var phClr;
+                if (bgRef["a:srgbClr"] !== undefined) {
+                    phClr = getTextByPathList(bgRef,["a:srgbClr","attrs", "val"]); //#...
+                }else if(bgRef["a:schemeClr"] !== undefined) { //a:schemeClr
+                    var schemeClr = getTextByPathList(bgRef,["a:schemeClr","attrs", "val"]);
+                    
+                    phClr = getSchemeColorFromTheme("a:" + schemeClr,slideMasterContent); //#...
+                    //console.log("phClr",phClr)
+                }
+                var idx = Number(bgRef["attrs"]["idx"]);
+                //console.log("phClr=",phClr,"idx=",idx)
+
+                if(idx == 0 || idx==1000){
+                    //no background
+                }else if(idx > 0 && idx < 1000){
+                    //fillStyleLst in themeContent
+                    //themeContent["a:fmtScheme"]["a:fillStyleLst"]
+                     //bgcolor = "background: red;";
+                }else if(idx > 1000 ){
+                    //bgFillStyleLst  in themeContent
+                    //themeContent["a:fmtScheme"]["a:bgFillStyleLst"]
+                    var trueIdx = idx - 1000;
+                    var bgFillLst = themeContent["a:theme"]["a:themeElements"]["a:fmtScheme"]["a:bgFillStyleLst"];
+                    var sortblAry = [];
+                    Object.keys(bgFillLst).forEach(function(key) {
+                        //console.log("cubicBezTo["+key+"]:");
+                        var bgFillLstTyp = bgFillLst[key];
+                        if(key != "attrs"){
+                            if(bgFillLstTyp.constructor === Array ){
+                                for(var i=0;i<bgFillLstTyp.length;i++){
+                                    var obj = {};
+                                    obj[key] = bgFillLstTyp[i];
+                                    obj["idex"] = bgFillLstTyp[i]["attrs"]["order"];
+                                    sortblAry.push(obj)
+                                }
+                            }else{
+                                var obj = {};
+                                obj[key] = bgFillLstTyp;
+                                obj["idex"] = bgFillLstTyp["attrs"]["order"];
+                                sortblAry.push(obj)
+                            }
+                        }
+                    });
+                    var sortByOrder = sortblAry.slice(0);
+                    sortByOrder.sort(function(a,b) {
+                        return a.idex - b.idex;
+                    });
+                    var bgFillLstIdx = sortByOrder[trueIdx-1];
+                    var bgFillTyp =  getFillType(bgFillLstIdx);
+                    //console.log("bgFillLstIdx",bgFillLstIdx);
+                    if(bgFillTyp == "SOLID_FILL"){
+                        var sldFill = bgFillLstIdx["a:solidFill"];
+                        var sldTint =  getColorOpacity(sldFill);
+                         bgcolor =  "background: rgba("+ hexToRgbNew(phClr)+","+ sldTint+");";
+                    }else if(bgFillTyp == "GRADIENT_FILL"){
+                        var grdFill = bgFillLstIdx["a:gradFill"];
+                        var gsLst = grdFill["a:gsLst"]["a:gs"];
+                        //get start color
+                        var startColorNode , endColorNode;
+                        var tint_ary = [];
+                        for(var i=0;i<gsLst.length;i++){
+                            var lo_tint = getTextByPathList(gsLst[i],["a:schemeClr","a:tint","attrs","val"]);
+                            tint_ary[i] = (lo_tint !==undefined)?parseInt(lo_tint) / 100000:1;
+                        }
+
+                        //get rot
+                        var lin = grdFill["a:lin"];
+                        var rot = 90;
+                        if(lin !== undefined){
+                           rot = angleToDegrees(lin["attrs"]["ang"]) + 90;
+                       }
+                        bgcolor =  "background: linear-gradient("+rot+"deg,";
+                       for(var i=0;i<gsLst.length;i++){
+                           if(i==gsLst.length-1){
+                                bgcolor += "rgba("+ hexToRgbNew(phClr)+","+ tint_ary[i]+")"+");";
+                           }else{
+                               bgcolor += "rgba("+ hexToRgbNew(phClr)+","+ tint_ary[i]+")"+", ";
+                           }
+                             
+                       } 
+                      
+                    }
+                }
             }
         }
     }
-    return bgColor;
+    
+    //console.log("bgcolor: ",bgcolor)   
+    return bgcolor;
 }
+function hexToRgbNew(hex) {
+  var arrBuff = new ArrayBuffer(4);
+  var vw = new DataView(arrBuff);
+  vw.setUint32(0,parseInt(hex, 16),false);
+  var arrByte = new Uint8Array(arrBuff);
 
-function getShapeFill(node, isSvgMode) {
+  return arrByte[1] + "," + arrByte[2] + "," + arrByte[3];
+}
+function getShapeFill(node, isSvgMode, warpObj) {
     
     // 1. presentationML
     // p:spPr [a:noFill, solidFill, gradFill, blipFill, pattFill, grpFill]
     // From slide
-    if (getTextByPathList(node, ["p:spPr", "a:noFill"]) !== undefined) {
+    //Fill Type:
+    //console.log("ShapeFill: ", node)
+    var fillType = getFillType(getTextByPathList(node, ["p:spPr"]));
+    var fillColor;
+    if (fillType == "NO_FILL") {
         return isSvgMode ? "none" : "background-color: initial;";
+    }else if(fillType == "SOLID_FILL"){
+        var shpFill = node["p:spPr"]["a:solidFill"];
+        fillColor = getSolidFill(shpFill);
+    }else if(fillType == "GRADIENT_FILL"){
+        var shpFill = node["p:spPr"]["a:gradFill"];
+        // fillColor = getSolidFill(shpFill);
+        fillColor = getGradientFill(shpFill);
+        //console.log("shpFill",shpFill,grndColor.color)
+    }else if(fillType == "PATTERN_FILL"){
+        var shpFill = node["p:spPr"]["a:pattFill"];
+        fillColor = getPatternFill(shpFill);
+    }else if(fillType == "PIC_FILL"){
+        var shpFill = node["p:spPr"]["a:blipFill"];
+        fillColor = getPicFill(shpFill, warpObj);
     }
     
-    var fillColor = undefined;
-    if (fillColor === undefined) {
-        fillColor = getTextByPathList(node, ["p:spPr", "a:solidFill", "a:srgbClr", "attrs", "val"]);
-    }
-    
-    // From theme
-    if (fillColor === undefined) {
-        var schemeClrName = getTextByPathList(node, ["p:spPr", "a:solidFill", "a:schemeClr", "attrs", "val"]);
-        if(schemeClrName !== undefined){
-            var schemeClr = "a:" + schemeClrName;
-            fillColor = getSchemeColorFromTheme(schemeClr);
-        }
-    }
-    
+
     // 2. drawingML namespace
     if (fillColor === undefined) {
-        var schemeClrName = getTextByPathList(node, ["p:style", "a:fillRef", "a:schemeClr", "attrs", "val"]);
-        if(schemeClrName !== undefined){
-            var schemeClr = "a:" + schemeClrName;
-            fillColor = getSchemeColorFromTheme(schemeClr);
-        }
+        var clrName = getTextByPathList(node, ["p:style", "a:fillRef"]);
+        fillColor = getSolidFill(clrName);
     }
-    
+
     if (fillColor !== undefined) {
         
-        fillColor = "#" + fillColor;
-        
-        // Apply shade or tint
-        // TODO: 較淺, 較深 80%
-        var lumMod = parseInt(getTextByPathList(node, ["p:spPr", "a:solidFill", "a:schemeClr", "a:lumMod", "attrs", "val"])) / 100000;
-        var lumOff = parseInt(getTextByPathList(node, ["p:spPr", "a:solidFill", "a:schemeClr", "a:lumOff", "attrs", "val"])) / 100000;
-        if (isNaN(lumMod)) {
-            lumMod = 1.0;
-        }
-        if (isNaN(lumOff)) {
-            lumOff = 0;
-        }
-        //console.log([lumMod, lumOff]);
-        fillColor = applyLumModify(fillColor, lumMod, lumOff);
-        
-        if (isSvgMode) {
-            return fillColor;
-        } else {
-            return "background-color: " + fillColor + ";";
+        if(fillType == "GRADIENT_FILL"){
+
+            if (isSvgMode) {
+                // console.log("GRADIENT_FILL color", fillColor.color[0])
+                return fillColor;
+            } else {
+                var colorAry = fillColor.color;
+                var rot = fillColor.rot;
+                
+                var bgcolor =  "background: linear-gradient("+rot+"deg,";
+                for(var i=0;i<colorAry.length;i++){
+                    if(i==colorAry.length-1){
+                        bgcolor += colorAry[i]+");";
+                    }else{
+                        bgcolor += colorAry[i]+", ";
+                    }
+                        
+                } 
+                return bgcolor;
+            }
+        }else if(fillType == "PIC_FILL"){
+            if (isSvgMode) {
+                return fillColor;
+            } else {
+
+                return "background-image:url(" + fillColor + ");";
+            }            
+        }else{
+            if (isSvgMode) {
+                var color = new colz.Color(fillColor);
+                fillColor =  color.rgb.toString();
+                
+                return fillColor;
+            } else {
+                //console.log(node,"fillColor: ",fillColor,"fillType: ",fillType,"isSvgMode: ",isSvgMode)
+                return "background-color: #" + fillColor + ";";
+            }
         }
     } else {
         if (isSvgMode) {
             return "none";
         } else {
-            return "background-color: " + fillColor + ";";
+            return "background-color: initial;";
         }
         
     }
@@ -2457,21 +2878,49 @@ function getFillType(node){
     return fillType;
 }
 function getGradientFill(node){
-    //Need to test/////////////////////////////////////////////
     var gsLst = node["a:gsLst"]["a:gs"];
     //get start color
-    var startColor = getSolidFill(gsLst[0]);
-    var startColorOpcty = getColorOpacity(gsLst[0]);
-    //get end color
-    var endColor = getSolidFill(gsLst[gsLst.length-1]);
-    var endColorOpcty = getColorOpacity(gsLst[gsLst.length-1]);    
+    var color_ary = [];
+    var tint_ary = [];
+    for(var i=0;i<gsLst.length;i++){
+        var lo_tint;
+        var lo_color = getSolidFill(gsLst[i]);
+        if (gsLst[i]["a:srgbClr"] !== undefined) {
+            var lumMod = parseInt(getTextByPathList(node, ["a:srgbClr", "a:lumMod", "attrs", "val"])) / 100000;
+            var lumOff = parseInt(getTextByPathList(node, ["a:srgbClr", "a:lumOff", "attrs", "val"])) / 100000;
+            if (isNaN(lumMod)) {
+                lumMod = 1.0;
+            }
+            if (isNaN(lumOff)) {
+                lumOff = 0;
+            }
+            //console.log([lumMod, lumOff]);
+            lo_color = applyLumModify(lo_color, lumMod, lumOff);
+        }else if(gsLst[i]["a:schemeClr"] !== undefined) { //a:schemeClr
+            var lumMod = parseInt(getTextByPathList(gsLst[i], ["a:schemeClr", "a:lumMod", "attrs", "val"])) / 100000;
+            var lumOff = parseInt(getTextByPathList(gsLst[i], ["a:schemeClr", "a:lumOff", "attrs", "val"])) / 100000;
+            if (isNaN(lumMod)) {
+                lumMod = 1.0;
+            }
+            if (isNaN(lumOff)) {
+                lumOff = 0;
+            }
+            //console.log([lumMod, lumOff]);
+            lo_color = applyLumModify(lo_color, lumMod, lumOff);
+        }
+        //console.log("lo_color",lo_color)
+        color_ary[i] =  lo_color;
+    } 
     //get rot
     var lin = node["a:lin"];
     var rot = 0;
     if(lin !== undefined){
-        rot = angleToDegrees(lin["ang"]);
+        rot = angleToDegrees(lin["attrs"]["ang"]) + 90;
     }
-    return [startColor,startColorOpcty,endColor,endColorOpcty,rot];
+    return {
+        "color":color_ary,
+        "rot": rot
+    }
 }
 function getPicFill(node,warpObj){
     //Need to test/////////////////////////////////////////////
@@ -2484,7 +2933,7 @@ function getPicFill(node,warpObj){
     var imgArrayBuffer = warpObj["zip"].file(imgPath).asArrayBuffer();
     var imgExt = imgPath.split(".").pop();
     var imgMimeType = getImageMimeType(imgExt);
-    img = "<img src='data:" + imgMimeType + ";base64," + base64ArrayBuffer(imgArrayBuffer) + "' style='width: 100%; height: 100%'/>";
+    img = "data:" + imgMimeType + ";base64," + base64ArrayBuffer(imgArrayBuffer);
     return img;
 }
 function getPatternFill(node){
@@ -2494,23 +2943,25 @@ function getPatternFill(node){
     color = getSolidFill(bgClr);
     return color;
 }
-function getSolidFill(solidFill) {
+
+function getSolidFill(node) {
     
-    if (solidFill === undefined) {
+    if (node === undefined) {
         return undefined;
     }
     
     var color = "FFF";
     
-    if (solidFill["a:srgbClr"] !== undefined) {
-        color = getTextByPathList(solidFill["a:srgbClr"], ["attrs", "val"]); //#...
-    } else if (solidFill["a:schemeClr"] !== undefined) {
-        var schemeClr = "a:" + getTextByPathList(solidFill["a:schemeClr"], ["attrs", "val"]);
-        color = getSchemeColorFromTheme(schemeClr); //#...
+    if (node["a:srgbClr"] !== undefined) {
+        color = getTextByPathList(node,["a:srgbClr","attrs", "val"]); //#...
+    }else if(node["a:schemeClr"] !== undefined) { //a:schemeClr
+        var schemeClr = getTextByPathList(node,["a:schemeClr","attrs", "val"]);
+        //console.log(schemeClr)
+        color = getSchemeColorFromTheme("a:" + schemeClr,undefined); //#...
         
-    }else if(solidFill["a:scrgbClr"] !== undefined){
+    }else if(node["a:scrgbClr"] !== undefined){
          //<a:scrgbClr r="50%" g="50%" b="50%"/>  //Need to test/////////////////////////////////////////////
-        var defBultColorVals = solidFill["a:scrgbClr"]["attrs"];
+        var defBultColorVals = node["a:scrgbClr"]["attrs"];
         var red = (defBultColorVals["r"].indexOf("%") != -1)?defBultColorVals["r"].split("%").shift():defBultColorVals["r"];
         var green = (defBultColorVals["g"].indexOf("%") != -1)?defBultColorVals["g"].split("%").shift():defBultColorVals["g"];
         var blue = (defBultColorVals["b"].indexOf("%") != -1)?defBultColorVals["b"].split("%").shift():defBultColorVals["b"];
@@ -2518,14 +2969,14 @@ function getSolidFill(solidFill) {
         color = toHex(255*(Number(red)/100)) + toHex(255*(Number(green)/100)) + toHex(255*(Number(blue)/100));
             //console.log("scrgbClr: " + scrgbClr);
 
-    }else if(solidFill["a:prstClr"] !== undefined){
+    }else if(node["a:prstClr"] !== undefined){
         //<a:prstClr val="black"/>  //Need to test/////////////////////////////////////////////
-        var prstClr  = solidFill["a:prstClr"]["attrs"]["val"];
+        var prstClr  = node["a:prstClr"]["attrs"]["val"];
         color = getColorName2Hex(prstClr);
         //console.log("prstClr: " + prstClr+" => hexClr: "+color);
-    }else if(solidFill["a:hslClr"] !== undefined){
+    }else if(node["a:hslClr"] !== undefined){
         //<a:hslClr hue="14400000" sat="100%" lum="50%"/>  //Need to test/////////////////////////////////////////////
-            var defBultColorVals = solidFill["a:hslClr"]["attrs"];
+            var defBultColorVals = node["a:hslClr"]["attrs"];
             var hue = Number(defBultColorVals["hue"])/100000;
             var sat = Number((defBultColorVals["sat"].indexOf("%") != -1)?defBultColorVals["sat"].split("%").shift():defBultColorVals["sat"])/100;
             var lum = Number((defBultColorVals["lum"].indexOf("%") != -1)?defBultColorVals["lum"].split("%").shift():defBultColorVals["lum"])/100;
@@ -2534,9 +2985,9 @@ function getSolidFill(solidFill) {
             color = toHex(hsl2rgb.r) + toHex(hsl2rgb.g) + toHex(hsl2rgb.b);
             //defBultColor = cnvrtHslColor2Hex(hslClr); //TODO
             // console.log("hslClr: " + hslClr);
-    }else if(solidFill["a:sysClr"] !== undefined){
+    }else if(node["a:sysClr"] !== undefined){
         //<a:sysClr val="windowText" lastClr="000000"/>  //Need to test/////////////////////////////////////////////
-        var sysClr = getTextByPathList(solidFill,["a:sysClr","attrs","lastClr"]);
+        var sysClr = getTextByPathList(node,["a:sysClr","attrs","lastClr"]);
         if(sysClr !== undefined){
             color = sysClr;
         }
@@ -2622,9 +3073,13 @@ function getColorOpacity(solidFill){
 
     return opcity;
 }
-function getSchemeColorFromTheme(schemeClr) {
+function getSchemeColorFromTheme(schemeClr,sldMasterNode) {
     //<p:clrMap ...> in slide master
     // e.g. tx2="dk2" bg2="lt2" tx1="dk1" bg1="lt1" slideLayoutClrOvride
+    
+    if(slideLayoutClrOvride == "" || slideLayoutClrOvride === undefined ){
+        slideLayoutClrOvride = getTextByPathList(sldMasterNode,["p:sldMaster","p:clrMap","attrs"])
+    }
     //console.log(slideLayoutClrOvride);
     var schmClrName =  schemeClr.substr(2);
     switch (schmClrName) {
@@ -2794,14 +3249,6 @@ function applyLumModify(rgbStr, factor, offset) {
     return color.rgb.toString();
 }
 
-// ===== Debug functions =====
-/**
- * debug
- * @param {Object} data
- */
-function debug(data) {
-    self.postMessage({"type": "DEBUG", "data": data});
-}
 ///////////////////////Amir////////////////
 function angleToDegrees(angle) {
     if (angle == "" || angle==null) {
@@ -2832,5 +3279,115 @@ function getImageMimeType(imgFileExt){
             mimeType = "image/*";
     }
     return mimeType;
+}
+function getSvgGradient(w,h,angl,color_arry,shpId){
+    var stopsArray = getMiddleStops(color_arry.length-2);
+    
+    var svgAngle = '',
+    svgHeight = h,
+    svgWidth = w,
+    svg = '',
+    xy_ary = SVGangle(angl, svgHeight,svgWidth),
+    x1 = xy_ary[0], 
+    y1 = xy_ary[1], 
+    x2 = xy_ary[2], 
+    y2 = xy_ary[3]; 
+
+    var sal = stopsArray.length, 
+    sr = sal < 20 ? 100 : 1000; 
+    svgAngle = ' gradientUnits="userSpaceOnUse" x1="' + x1 + '%" y1="' + y1 + '%" x2="' + x2 + '%" y2="' + y2 + '%"'; 
+    svgAngle = '<linearGradient id="linGrd_'+shpId+'"' + svgAngle + '>\n';
+    svg += svgAngle;
+
+    for (var i = 0; i < sal; i++) {
+        svg += '<stop offset="' + Math.round(parseFloat(stopsArray[i]) / 100 * sr) / sr + '" stop-color="' + color_arry[i] + '"';
+        svg += '/>\n'
+    }
+
+    svg += '</linearGradient>\n' + ''; 
+    
+    return svg   
+}
+function getMiddleStops(s) {
+    var sArry = ['0%', '100%'];
+    if (s == 0) { 
+        return true 
+    }else {
+        var i = s;
+        while (i--) {
+            var middleStop = 100 - ((100 / (s + 1)) * (i + 1)), // AM: Ex - For 3 middle stops, progression will be 25%, 50%, and 75%, plus 0% and 100% at the ends.
+            middleStopString = middleStop + "%";
+            sArry.splice(-1, 0, middleStopString);
+        } // AM: add into stopsArray before 100%
+    }
+    return sArry
+}
+function SVGangle(deg,svgHeight,svgWidth) {
+    var w = parseFloat(svgWidth), 
+    h = parseFloat(svgHeight), 
+    ang = parseFloat(deg),
+    o = 2, 
+    n = 2,
+    wc = w / 2, 
+    hc = h / 2,
+    tx1 = 2, 
+    ty1 = 2, 
+    tx2 = 2, 
+    ty2 = 2,
+    k = (((ang % 360) + 360) % 360),
+    j = (360 - k) * Math.PI / 180,
+    i = Math.tan(j),
+    l = hc - i * wc;
+    
+    if (k == 0) {
+        tx1 = w, 
+        ty1 = hc, 
+        tx2 = 0, 
+        ty2 = hc 
+    }else if (k < 90) {
+        n = w, 
+        o = 0 
+    }else if (k == 90) { 
+        tx1 = wc, 
+        ty1 = 0, 
+        tx2 = wc, 
+        ty2 = h 
+    }else if (k < 180) { 
+        n = 0,
+        o = 0 
+    }else if (k == 180) { 
+        tx1 = 0, 
+        ty1 = hc, 
+        tx2 = w, 
+        ty2 = hc 
+    }else if (k < 270) {
+        n = 0, 
+        o = h 
+    }else if (k == 270) { 
+        tx1 = wc, 
+        ty1 = h, 
+        tx2 = wc,
+        ty2 = 0 
+    }else { 
+        n = w, 
+        o = h; 
+    }
+    // AM: I could not quite figure out what m, n, and o are supposed to represent from the original code on visualcsstools.com.
+    var m = o + (n / i),
+    tx1 = tx1 == 2 ? i * (m - l) / (Math.pow(i, 2) + 1) : tx1,
+    ty1 = ty1 == 2 ? i * tx1 + l : ty1,
+    tx2 = tx2 == 2 ? w - tx1 : tx2,
+    ty2 = ty2 == 2 ? h - ty1 : ty2,
+    x1 = Math.round(tx2 / w * 100 * 100) / 100, 
+    y1 = Math.round(ty2 / h * 100 * 100) / 100,
+    x2 = Math.round(tx1 / w * 100 * 100) / 100, 
+    y2 = Math.round(ty1 / h * 100 * 100) / 100;
+    return [x1,y1,x2,y2];
+}
+function getSvgImagePattern(fillColor,shpId){
+    var ptrn =  '<pattern id="imgPtrn_'+shpId+'"  patternContentUnits="objectBoundingBox"  width="1" height="1">';
+    ptrn += '<image  xlink:href="'+fillColor+'" preserveAspectRatio="none" width="1" height="1"></image>';
+    ptrn += '</pattern>';
+    return ptrn;
 }
 ////////////////////////////////////////
