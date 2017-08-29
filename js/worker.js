@@ -1,13 +1,40 @@
-/* global self, importScripts, JSZip, base64ArrayBuffer, tXml, extractFileExtension, colz */
+/* global self, importScripts, JSZip, tXml, colz, btoa */
 'use strict'
 
 importScripts(
   './jszip.min.js',
   './highlight.min.js',
   './colz.class.min.js',
-  './tXml.js',
-  './functions.js'
+  './tXml.js'
 )
+
+function base64ArrayBuffer (arrayBuff) {
+  const buff = new Uint8Array(arrayBuff)
+  let text = ''
+  for (let i = 0; i < buff.byteLength; i++) {
+    text += String.fromCharCode(buff[i])
+  }
+  return btoa(text)
+}
+
+function extractFileExtension (filename) {
+  const dot = filename.lastIndexOf('.')
+  if (dot === 0 || dot === -1) return ''
+  return filename.substr(filename.lastIndexOf('.') + 1)
+}
+
+/*
+function escapeHtml (text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    '\'': '&#039;'
+  }
+  return text.replace(/[&<>"']/g, m => map[m])
+}
+*/
 
 const MsgQueue = []
 
@@ -3361,11 +3388,7 @@ function getImageMimeType (imgFileExt) {
 function getSvgGradient (w, h, angl, colorArray, shpId) {
   const stopsArray = getMiddleStops(colorArray.length - 2)
 
-  let svgAngle = ''
-  const svgHeight = h
-  const svgWidth = w
-  let svg = ''
-  const xyArray = SVGangle(angl, svgHeight, svgWidth)
+  const xyArray = SVGangle(angl, h, w)
   const x1 = xyArray[0]
   const y1 = xyArray[1]
   const x2 = xyArray[2]
@@ -3373,9 +3396,8 @@ function getSvgGradient (w, h, angl, colorArray, shpId) {
 
   const sal = stopsArray.length
   const sr = sal < 20 ? 100 : 1000
-  svgAngle = ' gradientUnits="userSpaceOnUse" x1="' + x1 + '%" y1="' + y1 + '%" x2="' + x2 + '%" y2="' + y2 + '%"'
-  svgAngle = '<linearGradient id="linGrd_' + shpId + '"' + svgAngle + '>\n'
-  svg += svgAngle
+  let svgAngle = ' gradientUnits="userSpaceOnUse" x1="' + x1 + '%" y1="' + y1 + '%" x2="' + x2 + '%" y2="' + y2 + '%"'
+  let svg = '<linearGradient id="linGrd_' + shpId + '"' + svgAngle + '>\n'
 
   for (let i = 0; i < sal; i++) {
     svg += '<stop offset="' + Math.round(parseFloat(stopsArray[i]) / 100 * sr) / sr + '" stop-color="' + colorArray[i] + '"'
@@ -3471,5 +3493,3 @@ function getSvgImagePattern (fillColor, shpId) {
   ptrn += '</pattern>'
   return ptrn
 }
-
-// //////////////////////////////////////
