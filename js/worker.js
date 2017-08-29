@@ -1,4 +1,4 @@
-/* global self, importScripts, JSZip, base64ArrayBuffer, tXml, extractFileExtension */
+/* global self, importScripts, JSZip, base64ArrayBuffer, tXml, extractFileExtension, colz */
 'use strict'
 
 importScripts(
@@ -442,8 +442,8 @@ function processSpNode (node, warpObj) {
 function processCxnSpNode (node, warpObj) {
   const id = node['p:nvCxnSpPr']['p:cNvPr']['attrs']['id']
   const name = node['p:nvCxnSpPr']['p:cNvPr']['attrs']['name']
-  // var idx = (node["p:nvCxnSpPr"]["p:nvPr"]["p:ph"] === undefined) ? undefined : node["p:nvSpPr"]["p:nvPr"]["p:ph"]["attrs"]["idx"];
-  // var type = (node["p:nvCxnSpPr"]["p:nvPr"]["p:ph"] === undefined) ? undefined : node["p:nvSpPr"]["p:nvPr"]["p:ph"]["attrs"]["type"];
+  // const idx = (node["p:nvCxnSpPr"]["p:nvPr"]["p:ph"] === undefined) ? undefined : node["p:nvSpPr"]["p:nvPr"]["p:ph"]["attrs"]["idx"];
+  // const type = (node["p:nvCxnSpPr"]["p:nvPr"]["p:ph"] === undefined) ? undefined : node["p:nvSpPr"]["p:nvPr"]["p:ph"]["attrs"]["type"];
   // <p:cNvCxnSpPr>(<p:cNvCxnSpPr>, <a:endCxn>)
   const order = node['attrs']['order']
 
@@ -475,6 +475,12 @@ function genShape (node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, ty
   // ////////////////////////////////////////////////
   let w
   let h
+  let border
+  let headEndNodeAttrs
+  let tailEndNodeAttrs
+  let fillColor
+  let grndFillFlg = false
+  let imgFillFlg = false
   if (shapType !== undefined || custShapType !== undefined) {
     // const off = getTextByPathList(slideXfrmNode, ['a:off', 'attrs'])
     // const x = parseInt(off['x']) * 96 / 914400
@@ -493,9 +499,7 @@ function genShape (node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, ty
       '\'>'
     result += '<defs>'
     // Fill Color
-    var fillColor = getShapeFill(node, true, warpObj)
-    var grndFillFlg = false
-    var imgFillFlg = false
+    fillColor = getShapeFill(node, true, warpObj)
     const clrFillType = getFillType(getTextByPathList(node, ['p:spPr']))
     // ///////////////////////////////////////
     if (clrFillType === 'GRADIENT_FILL') {
@@ -513,10 +517,10 @@ function genShape (node, slideLayoutSpNode, slideMasterSpNode, id, name, idx, ty
       result += svgBgImg
     }
     // Border Color
-    var border = getBorder(node, true)
+    border = getBorder(node, true)
 
-    var headEndNodeAttrs = getTextByPathList(node, ['p:spPr', 'a:ln', 'a:headEnd', 'attrs'])
-    var tailEndNodeAttrs = getTextByPathList(node, ['p:spPr', 'a:ln', 'a:tailEnd', 'attrs'])
+    headEndNodeAttrs = getTextByPathList(node, ['p:spPr', 'a:ln', 'a:headEnd', 'attrs'])
+    tailEndNodeAttrs = getTextByPathList(node, ['p:spPr', 'a:ln', 'a:tailEnd', 'attrs'])
     // type: none, triangle, stealth, diamond, oval, arrow
 
     if ((headEndNodeAttrs !== undefined && (headEndNodeAttrs['type'] === 'triangle' || headEndNodeAttrs['type'] === 'arrow')) ||
@@ -1289,7 +1293,7 @@ function genTextBody (textBodyNode, slideLayoutSpNode, slideMasterSpNode, type, 
   // rtl : <p:txBody>
   //          <a:bodyPr wrap="square" rtlCol="1">
 
-  // var rtlStr = "";
+  // const rtlStr = "";
   let pNode
   let rNode
   if (textBodyNode['a:p'].constructor === Array) {
@@ -1298,7 +1302,7 @@ function genTextBody (textBodyNode, slideLayoutSpNode, slideMasterSpNode, type, 
       pNode = textBodyNode['a:p'][i]
       rNode = pNode['a:r']
 
-      // var isRTL = getTextDirection(pNode, type, slideMasterTextStyles);
+      // const isRTL = getTextDirection(pNode, type, slideMasterTextStyles);
       // rtlStr = "";//"dir='"+isRTL+"'";
 
       text += '<div  class=\'' + getHorizontalAlign(pNode, slideLayoutSpNode, slideMasterSpNode, type, slideMasterTextStyles) + '\'>'
@@ -1328,7 +1332,7 @@ function genTextBody (textBodyNode, slideLayoutSpNode, slideMasterSpNode, type, 
     pNode = textBodyNode['a:p']
     rNode = pNode['a:r']
 
-    // var isRTL = getTextDirection(pNode, type, slideMasterTextStyles);
+    // const isRTL = getTextDirection(pNode, type, slideMasterTextStyles);
     // rtlStr = "";//"dir='"+isRTL+"'";
 
     text += '<div class=\'slide-prgrph ' + getHorizontalAlign(pNode, slideLayoutSpNode, slideMasterSpNode, type, slideMasterTextStyles) + '\'>'
@@ -1446,7 +1450,7 @@ function genBuChar (node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
   let marginLeft
   let marginRight
   if (buType === 'TYPE_BULLET') {
-    // var buFontAttrs = getTextByPathList(pPrNode, ["a:buFont", "attrs"]);
+    // const buFontAttrs = getTextByPathList(pPrNode, ["a:buFont", "attrs"]);
     if (buFontAttrs !== undefined) {
       marginLeft = parseInt(getTextByPathList(pPrNode, ['attrs', 'marL'])) * 96 / 914400
       marginRight = parseInt(buFontAttrs['pitchFamily'])
@@ -1483,7 +1487,7 @@ function genBuChar (node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
       if (isNaN(marginRight)) {
         marginRight = 0
       }
-      // var typeface = buFontAttrs["typeface"];
+      // const typeface = buFontAttrs["typeface"];
 
       bullet = '<span style=\'margin-left: ' + marginLeft * lvl + 'px' +
         '; margin-right: ' + marginRight + 'px' +
@@ -1519,7 +1523,7 @@ function genBuChar (node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
     } else {
       marginLeft = 0
     }
-    // var buPicId = getTextByPathList(buPic, ["a:blip","a:extLst","a:ext","asvg:svgBlip" , "attrs", "r:embed"]);
+    // const buPicId = getTextByPathList(buPic, ["a:blip","a:extLst","a:ext","asvg:svgBlip" , "attrs", "r:embed"]);
     const buPicId = getTextByPathList(buPic, ['a:blip', 'attrs', 'r:embed'])
     // const svgPicPath = ''
     let buImg
@@ -1652,7 +1656,7 @@ function genTable (node, warpObj) {
       let thisTblStyle
       const tbleStyleId = getTblPr['a:tableStyleId']
       if (tbleStyleId !== undefined) {
-        // get Style from tableStyles.xml by {var tbleStyleId}
+        // get Style from tableStyles.xml by {const tbleStyleId}
         // table style object : tableStyles
         const tbleStylList = tableStyles['a:tblStyleLst']['a:tblStyle']
 
@@ -1687,7 +1691,7 @@ function genTable (node, warpObj) {
           const rowTxtStyl = getTextByPathList(thisTblStyle, ['a:firstRow', 'a:tcTxStyle'])
           if (rowTxtStyl !== undefined) {
             /*
-                    var styleText =
+                    const styleText =
                         "color:" + getFontColor(node, type, slideMasterTextStyles) +
                         ";font-size:" + getFontSize(node, slideLayoutSpNode, slideMasterSpNode, type, slideMasterTextStyles) +
                         ";font-family:" + getFontType(node, type, slideMasterTextStyles) +
@@ -1729,43 +1733,43 @@ function genTable (node, warpObj) {
             // console.log(i,thisTblStyle)
           }
           /* else{
-                        var bgFillschemeClr = thisTblStyle["a:wholeTbl"]["a:tcStyle"]["a:fill"]["a:solidFill"];
+                        const bgFillschemeClr = thisTblStyle["a:wholeTbl"]["a:tcStyle"]["a:fill"]["a:solidFill"];
                         if(bgFillschemeClr !==undefined){
                             fillColor = getSolidFill(bgFillschemeClr);
                             colorOpacity = getColorOpacity(bgFillschemeClr);
                         }
                         //borders color
                         //borders Width
-                        var borderStyl = thisTblStyle["a:wholeTbl"]["a:tcStyle"]["a:tcBdr"];
+                        const borderStyl = thisTblStyle["a:wholeTbl"]["a:tcStyle"]["a:tcBdr"];
                         if(borderStyl !== undefined){
-                            var rowBorders = getTableBorders(borderStyl);
+                            const rowBorders = getTableBorders(borderStyl);
                             rowsStyl += rowBorders;
                         }
                         //console.log(thisTblStyle["a:wholeTbl"])
 
                         //Text Style - TODO
-                        var rowTxtStyl = thisTblStyle["a:wholeTbl"]["a:tcTxStyle"];
+                        const rowTxtStyl = thisTblStyle["a:wholeTbl"]["a:tcTxStyle"];
                         if(rowTxtStyl !== undefined){
                         }
                     }*/
         } else {
           if (thisTblStyle['a:band1H'] !== undefined) {
-            var bgFillschemeClr = getTextByPathList(thisTblStyle, ['a:band1H', 'a:tcStyle', 'a:fill', 'a:solidFill'])
+            const bgFillschemeClr = getTextByPathList(thisTblStyle, ['a:band1H', 'a:tcStyle', 'a:fill', 'a:solidFill'])
             if (bgFillschemeClr !== undefined) {
               fillColor = getSolidFill(bgFillschemeClr)
               colorOpacity = getColorOpacity(bgFillschemeClr)
             }
             // borders color
             // borders Width
-            var borderStyl = getTextByPathList(thisTblStyle, ['a:band1H', 'a:tcStyle', 'a:tcBdr'])
+            const borderStyl = getTextByPathList(thisTblStyle, ['a:band1H', 'a:tcStyle', 'a:tcBdr'])
             if (borderStyl !== undefined) {
-              var rowBorders = getTableBorders(borderStyl)
+              const rowBorders = getTableBorders(borderStyl)
               rowsStyl += rowBorders
             }
             // console.log(thisTblStyle["a:band1H"])
 
             // Text Style - TODO
-            var rowTxtStyl = getTextByPathList(thisTblStyle, ['a:band1H', 'a:tcTxStyle'])
+            const rowTxtStyl = getTextByPathList(thisTblStyle, ['a:band1H', 'a:tcTxStyle'])
             if (rowTxtStyl !== undefined) {
             }
           }
@@ -1776,11 +1780,11 @@ function genTable (node, warpObj) {
       tableHtml += '<tr style=\'' + rowsStyl + '\'>'
       // //////////////////////////////////////////////
 
-      var tcNodes = trNodes[i]['a:tc']
+      const tcNodes = trNodes[i]['a:tc']
 
       if (tcNodes.constructor === Array) {
         for (let j = 0; j < tcNodes.length; j++) {
-          var text = genTextBody(tcNodes[j]['a:txBody'], undefined, undefined, undefined, warpObj)
+          const text = genTextBody(tcNodes[j]['a:txBody'], undefined, undefined, undefined, warpObj)
           const rowSpan = getTextByPathList(tcNodes[j], ['attrs', 'rowSpan'])
           const colSpan = getTextByPathList(tcNodes[j], ['attrs', 'gridSpan'])
           const vMerge = getTextByPathList(tcNodes[j], ['attrs', 'vMerge'])
@@ -1788,15 +1792,15 @@ function genTable (node, warpObj) {
           // Cells Style : TODO /////////////Amir
           // console.log(tcNodes[j]);
           // if(j==0 && ())
-          var colWidthParam = getColsGrid[j]['attrs']['w']
-          var colStyl = ''
+          const colWidthParam = getColsGrid[j]['attrs']['w']
+          let colStyl = ''
           if (colWidthParam !== undefined) {
-            var colWidth = parseInt(colWidthParam) * 96 / 914400
+            const colWidth = parseInt(colWidthParam) * 96 / 914400
             colStyl += 'width:' + colWidth + 'px;'
           }
-          var getFill = tcNodes[j]['a:tcPr']['a:solidFill']
-          var fillColor = ''
-          var colorOpacity = 1
+          const getFill = tcNodes[j]['a:tcPr']['a:solidFill']
+          let fillColor = ''
+          let colorOpacity = 1
           if (getFill !== undefined) {
             // console.log(getFill);
             fillColor = getSolidFill(getFill)
@@ -1806,7 +1810,7 @@ function genTable (node, warpObj) {
             // get tableStyleId = a:tbl => a:tblPr => a:tableStyleId
             const tbleStyleId = getTblPr['a:tableStyleId']
             if (tbleStyleId !== undefined) {
-              // get Style from tableStyles.xml by {var tbleStyleId}
+              // get Style from tableStyles.xml by {const tbleStyleId}
               // table style object : tableStyles
               const tbleStylList = tableStyles['a:tblStyleLst']['a:tblStyle']
 
@@ -1834,17 +1838,17 @@ function genTable (node, warpObj) {
           }
         }
       } else {
-        var text = genTextBody(tcNodes['a:txBody'])
+        const text = genTextBody(tcNodes['a:txBody'])
         // Cells Style : TODO /////////////Amir
-        var colWidthParam = getColsGrid[0]['attrs']['w']
-        var colStyl = ''
+        const colWidthParam = getColsGrid[0]['attrs']['w']
+        let colStyl = ''
         if (colWidthParam !== undefined) {
-          var colWidth = parseInt(colWidthParam) * 96 / 914400
+          const colWidth = parseInt(colWidthParam) * 96 / 914400
           colStyl += 'width:' + colWidth + 'px;'
         }
-        var getFill = tcNodes['a:tcPr']['a:solidFill']
-        var fillColor = ''
-        var colorOpacity = 1
+        const getFill = tcNodes['a:tcPr']['a:solidFill']
+        let fillColor = ''
+        let colorOpacity = 1
         if (getFill !== undefined) {
           // console.log(getFill);
           fillColor = getSolidFill(getFill)
@@ -1875,17 +1879,17 @@ function genTable (node, warpObj) {
     const tcNodes = trNodes['a:tc']
     if (tcNodes.constructor === Array) {
       for (let j = 0; j < tcNodes.length; j++) {
-        var text = genTextBody(tcNodes[j]['a:txBody'])
+        const text = genTextBody(tcNodes[j]['a:txBody'])
         // Cells Style : TODO /////////////Amir
-        var colWidthParam = getColsGrid[j]['attrs']['w']
-        var colStyl = ''
+        const colWidthParam = getColsGrid[j]['attrs']['w']
+        let colStyl = ''
         if (colWidthParam !== undefined) {
-          var colWidth = parseInt(colWidthParam) * 96 / 914400
+          const colWidth = parseInt(colWidthParam) * 96 / 914400
           colStyl += 'width:' + colWidth + 'px;'
         }
-        var getFill = tcNodes[j]['a:tcPr']['a:solidFill']
-        var fillColor = ''
-        var colorOpacity = 1
+        const getFill = tcNodes[j]['a:tcPr']['a:solidFill']
+        let fillColor = ''
+        let colorOpacity = 1
         if (getFill !== undefined) {
           fillColor = getSolidFill(getFill)
           colorOpacity = getColorOpacity(getFill)
@@ -1902,17 +1906,17 @@ function genTable (node, warpObj) {
         tableHtml += '<td style=\'' + colStyl + '\'>' + text + '</td>'
       }
     } else {
-      var text = genTextBody(tcNodes['a:txBody'])
+      const text = genTextBody(tcNodes['a:txBody'])
       // Cells Style : TODO /////////////Amir
-      var colWidthParam = getColsGrid[0]['attrs']['w']
-      var colStyl = ''
+      const colWidthParam = getColsGrid[0]['attrs']['w']
+      let colStyl = ''
       if (colWidthParam !== undefined) {
-        var colWidth = parseInt(colWidthParam) * 96 / 914400
+        const colWidth = parseInt(colWidthParam) * 96 / 914400
         colStyl += 'width:' + colWidth + 'px;'
       }
-      var getFill = tcNodes[j]['a:tcPr']['a:solidFill']
-      var fillColor = ''
-      var colorOpacity = 1
+      const getFill = tcNodes['a:tcPr']['a:solidFill']
+      let fillColor = ''
+      let colorOpacity = 1
       if (getFill !== undefined) {
         // console.log(getFill);
         fillColor = getSolidFill(getFill)
@@ -2025,7 +2029,7 @@ function genChart (node, warpObj) {
 }
 
 function genDiagram (node, warpObj) {
-  const order = node['attrs']['order']
+  // const order = node['attrs']['order']
   const xfrmNode = getTextByPathList(node, ['p:xfrm'])
   return '<div class=\'block content\' style=\'border: 1px dotted;' +
     getPosition(xfrmNode, undefined, undefined) + getSize(xfrmNode, undefined, undefined) +
@@ -2034,7 +2038,8 @@ function genDiagram (node, warpObj) {
 
 function getPosition (slideSpNode, slideLayoutSpNode, slideMasterSpNode) {
   let off
-  let x = -1, y = -1
+  let x = -1
+  let y = -1
 
   if (slideSpNode !== undefined) {
     off = slideSpNode['a:off']['attrs']
@@ -2142,7 +2147,7 @@ function getFontColor (node, type, slideMasterTextStyles) {
 
   const color = getSolidFill(solidFillNode)
   // console.log(themeContent)
-  // var schemeClr = getTextByPathList(buClrNode ,["a:schemeClr", "attrs","val"]);
+  // const schemeClr = getTextByPathList(buClrNode ,["a:schemeClr", "attrs","val"]);
   return (color === undefined || color === 'FFF') ? '#000' : '#' + color
 }
 
@@ -2258,7 +2263,7 @@ function getTextDirection (node, type, slideMasterTextStyles) {
   const lvlNode = 'a:lvl' + pprLvlNum + 'pPr'
   const pprAlgn = getTextByPathList(node, ['a:pPr', 'attrs', 'algn'])
   const isDir = getTextByPathList(slideMasterTextStyles, ['p:bodyStyle', lvlNode, 'attrs', 'rtl'])
-  // var tmp = getTextByPathList(node, ["a:r", "a:t"]);
+  // const tmp = getTextByPathList(node, ["a:r", "a:t"]);
   let dir = ''
   if (isDir !== undefined) {
     if (isDir === '1' && (pprAlgn === undefined || pprAlgn === 'r')) {
@@ -2384,28 +2389,27 @@ function getBorder (node, isSvgMode) {
       strokeDasharray = '2, 5'
       break
     }
-    case undefined:
-    // console.log(borderType);
-    default:
+    default: {
       cssText += 'solid'
       strokeDasharray = '0'
+    }
   }
   // Border color
-  var borderColor = getTextByPathList(lineNode, ['a:solidFill', 'a:srgbClr', 'attrs', 'val'])
+  let borderColor = getTextByPathList(lineNode, ['a:solidFill', 'a:srgbClr', 'attrs', 'val'])
   if (borderColor === undefined) {
-    var schemeClrNode = getTextByPathList(lineNode, ['a:solidFill', 'a:schemeClr'])
+    const schemeClrNode = getTextByPathList(lineNode, ['a:solidFill', 'a:schemeClr'])
     if (schemeClrNode !== undefined) {
-      var schemeClr = 'a:' + getTextByPathList(schemeClrNode, ['attrs', 'val'])
-      var borderColor = getSchemeColorFromTheme(schemeClr, undefined)
+      const schemeClr = 'a:' + getTextByPathList(schemeClrNode, ['attrs', 'val'])
+      borderColor = getSchemeColorFromTheme(schemeClr, undefined)
     }
   }
 
   // 2. drawingML namespace
   if (borderColor === undefined) {
-    var schemeClrNode = getTextByPathList(node, ['p:style', 'a:lnRef', 'a:schemeClr'])
+    const schemeClrNode = getTextByPathList(node, ['p:style', 'a:lnRef', 'a:schemeClr'])
     if (schemeClrNode !== undefined) {
-      var schemeClr = 'a:' + getTextByPathList(schemeClrNode, ['attrs', 'val'])
-      var borderColor = getSchemeColorFromTheme(schemeClr, undefined)
+      const schemeClr = 'a:' + getTextByPathList(schemeClrNode, ['attrs', 'val'])
+      borderColor = getSchemeColorFromTheme(schemeClr, undefined)
     }
 
     if (borderColor !== undefined) {
@@ -2446,41 +2450,42 @@ function getSlideBackgroundFill (slideContent, slideLayoutContent, slideMasterCo
 
   if (bgPr !== undefined) {
     // bgcolor = "background-color: blue;";
-    var bgFillTyp = getFillType(bgPr)
+    const bgFillTyp = getFillType(bgPr)
 
     if (bgFillTyp === 'SOLID_FILL') {
-      var sldFill = bgPr['a:solidFill']
-      var bgColor = getSolidFill(sldFill)
-      var sldTint = getColorOpacity(sldFill)
+      const sldFill = bgPr['a:solidFill']
+      const bgColor = getSolidFill(sldFill)
+      const sldTint = getColorOpacity(sldFill)
       bgcolor = 'background: rgba(' + hexToRgbNew(bgColor) + ',' + sldTint + ');'
     } else if (bgFillTyp === 'GRADIENT_FILL') {
-      var grdFill = bgPr['a:gradFill']
-      // var grdFillVals =  getGradientFill(grdFill);
+      const grdFill = bgPr['a:gradFill']
+      // const grdFillVals =  getGradientFill(grdFill);
       // console.log("grdFillVals",grdFillVals)
-      var gsLst = grdFill['a:gsLst']['a:gs']
+      const gsLst = grdFill['a:gsLst']['a:gs']
       // get start color
-      var startColorNode, endColorNode
-      var colorArray = []
-      var tintArray = []
+      // let startColorNode
+      // let endColorNode
+      const colorArray = []
+      const tintArray = []
       for (let i = 0; i < gsLst.length; i++) {
-        var lo_tint
-        var lo_color
+        let loTint
+        let loColor
         if (gsLst[i]['a:srgbClr'] !== undefined) {
-          lo_color = getTextByPathList(gsLst[i], ['a:srgbClr', 'attrs', 'val']) // #...
-          lo_tint = getTextByPathList(gsLst[i], ['a:srgbClr', 'a:tint', 'attrs', 'val'])
+          loColor = getTextByPathList(gsLst[i], ['a:srgbClr', 'attrs', 'val']) // #...
+          loTint = getTextByPathList(gsLst[i], ['a:srgbClr', 'a:tint', 'attrs', 'val'])
         } else if (gsLst[i]['a:schemeClr'] !== undefined) { // a:schemeClr
-          var schemeClr = getTextByPathList(gsLst[i], ['a:schemeClr', 'attrs', 'val'])
-          lo_color = getSchemeColorFromTheme('a:' + schemeClr, slideMasterContent) // #...
-          lo_tint = getTextByPathList(gsLst[i], ['a:schemeClr', 'a:tint', 'attrs', 'val'])
+          const schemeClr = getTextByPathList(gsLst[i], ['a:schemeClr', 'attrs', 'val'])
+          loColor = getSchemeColorFromTheme('a:' + schemeClr, slideMasterContent) // #...
+          loTint = getTextByPathList(gsLst[i], ['a:schemeClr', 'a:tint', 'attrs', 'val'])
           // console.log("schemeClr",schemeClr,slideMasterContent)
         }
-        // console.log("lo_color",lo_color)
-        colorArray[i] = lo_color
-        tintArray[i] = (lo_tint !== undefined) ? parseInt(lo_tint) / 100000 : 1
+        // console.log("loColor",loColor)
+        colorArray[i] = loColor
+        tintArray[i] = (loTint !== undefined) ? parseInt(loTint) / 100000 : 1
       }
       // get rot
-      var lin = grdFill['a:lin']
-      var rot = 90
+      const lin = grdFill['a:lin']
+      let rot = 90
       if (lin !== undefined) {
         rot = angleToDegrees(lin['attrs']['ang']) + 90
       }
@@ -2493,8 +2498,8 @@ function getSlideBackgroundFill (slideContent, slideLayoutContent, slideMasterCo
         }
       }
     } else if (bgFillTyp === 'PIC_FILL') {
-      var picFillBase64 = getPicFill('slideBg', bgPr['a:blipFill'], warpObj)
-      var ordr = bgPr['attrs']['order']
+      const picFillBase64 = getPicFill('slideBg', bgPr['a:blipFill'], warpObj)
+      const ordr = bgPr['attrs']['order']
       // a:srcRect
       // a:stretch => a:fillRect =>attrs (l:-17000, r:-17000)
       bgcolor = 'background-image: url(' + picFillBase64 + ');  z-index: ' + ordr + ';'
@@ -2503,15 +2508,15 @@ function getSlideBackgroundFill (slideContent, slideLayoutContent, slideMasterCo
     // console.log(slideContent,slideMasterContent,colorArray,tintArray,rot,bgcolor)
   } else if (bgRef !== undefined) {
     // console.log("slideContent",bgRef)
-    var phClr
+    let phClr
     if (bgRef['a:srgbClr'] !== undefined) {
       phClr = getTextByPathList(bgRef, ['a:srgbClr', 'attrs', 'val']) // #...
     } else if (bgRef['a:schemeClr'] !== undefined) { // a:schemeClr
-      var schemeClr = getTextByPathList(bgRef, ['a:schemeClr', 'attrs', 'val'])
+      const schemeClr = getTextByPathList(bgRef, ['a:schemeClr', 'attrs', 'val'])
       phClr = getSchemeColorFromTheme('a:' + schemeClr, slideMasterContent) // #...
       // console.log("schemeClr",schemeClr,"phClr=",phClr)
     }
-    var idx = Number(bgRef['attrs']['idx'])
+    const idx = Number(bgRef['attrs']['idx'])
 
     if (idx === 0 || idx === 1000) {
       // no background
@@ -2522,53 +2527,54 @@ function getSlideBackgroundFill (slideContent, slideLayoutContent, slideMasterCo
     } else if (idx > 1000) {
       // bgFillStyleLst  in themeContent
       // themeContent["a:fmtScheme"]["a:bgFillStyleLst"]
-      var trueIdx = idx - 1000
-      var bgFillLst = themeContent['a:theme']['a:themeElements']['a:fmtScheme']['a:bgFillStyleLst']
-      var sortblAry = []
+      const trueIdx = idx - 1000
+      const bgFillLst = themeContent['a:theme']['a:themeElements']['a:fmtScheme']['a:bgFillStyleLst']
+      const sortblAry = []
       Object.keys(bgFillLst).forEach(function (key) {
         const bgFillLstTyp = bgFillLst[key]
         if (key !== 'attrs') {
           if (bgFillLstTyp.constructor === Array) {
             for (let i = 0; i < bgFillLstTyp.length; i++) {
-              var obj = {}
+              const obj = {}
               obj[key] = bgFillLstTyp[i]
               obj['idex'] = bgFillLstTyp[i]['attrs']['order']
               sortblAry.push(obj)
             }
           } else {
-            var obj = {}
+            const obj = {}
             obj[key] = bgFillLstTyp
             obj['idex'] = bgFillLstTyp['attrs']['order']
             sortblAry.push(obj)
           }
         }
       })
-      var sortByOrder = sortblAry.slice(0)
+      const sortByOrder = sortblAry.slice(0)
       sortByOrder.sort(function (a, b) {
         return a.idex - b.idex
       })
-      var bgFillLstIdx = sortByOrder[trueIdx - 1]
-      var bgFillTyp = getFillType(bgFillLstIdx)
+      const bgFillLstIdx = sortByOrder[trueIdx - 1]
+      const bgFillTyp = getFillType(bgFillLstIdx)
       if (bgFillTyp === 'SOLID_FILL') {
-        var sldFill = bgFillLstIdx['a:solidFill']
-        // var sldBgColor = getSolidFill(sldFill);
-        var sldTint = getColorOpacity(sldFill)
+        const sldFill = bgFillLstIdx['a:solidFill']
+        // const sldBgColor = getSolidFill(sldFill);
+        const sldTint = getColorOpacity(sldFill)
         bgcolor = 'background: rgba(' + hexToRgbNew(phClr) + ',' + sldTint + ');'
         // console.log("slideMasterContent - sldFill",sldFill)
       } else if (bgFillTyp === 'GRADIENT_FILL') {
-        var grdFill = bgFillLstIdx['a:gradFill']
-        var gsLst = grdFill['a:gsLst']['a:gs']
+        const grdFill = bgFillLstIdx['a:gradFill']
+        const gsLst = grdFill['a:gsLst']['a:gs']
         // get start color
-        var startColorNode, endColorNode
-        var tintArray = []
+        // let startColorNode
+        // let endColorNode
+        const tintArray = []
         for (let i = 0; i < gsLst.length; i++) {
-          var lo_tint = getTextByPathList(gsLst[i], ['a:schemeClr', 'a:tint', 'attrs', 'val'])
-          tintArray[i] = (lo_tint !== undefined) ? parseInt(lo_tint) / 100000 : 1
+          const loTint = getTextByPathList(gsLst[i], ['a:schemeClr', 'a:tint', 'attrs', 'val'])
+          tintArray[i] = (loTint !== undefined) ? parseInt(loTint) / 100000 : 1
         }
         // console.log("gsLst",gsLst)
         // get rot
-        var lin = grdFill['a:lin']
-        var rot = 90
+        const lin = grdFill['a:lin']
+        let rot = 90
         if (lin !== undefined) {
           rot = angleToDegrees(lin['attrs']['ang']) + 90
         }
@@ -2587,41 +2593,42 @@ function getSlideBackgroundFill (slideContent, slideLayoutContent, slideMasterCo
     bgRef = getTextByPathList(slideLayoutContent, ['p:sldLayout', 'p:cSld', 'p:bg', 'p:bgRef'])
     // console.log("slideLayoutContent",bgPr,bgRef)
     if (bgPr !== undefined) {
-      var bgFillTyp = getFillType(bgPr)
+      const bgFillTyp = getFillType(bgPr)
       if (bgFillTyp === 'SOLID_FILL') {
-        var sldFill = bgPr['a:solidFill']
-        var bgColor = getSolidFill(sldFill)
-        var sldTint = getColorOpacity(sldFill)
+        const sldFill = bgPr['a:solidFill']
+        const bgColor = getSolidFill(sldFill)
+        const sldTint = getColorOpacity(sldFill)
         bgcolor = 'background: rgba(' + hexToRgbNew(bgColor) + ',' + sldTint + ');'
       } else if (bgFillTyp === 'GRADIENT_FILL') {
-        var grdFill = bgPr['a:gradFill']
-        // var grdFillVals =  getGradientFill(grdFill);
+        const grdFill = bgPr['a:gradFill']
+        // const grdFillVals =  getGradientFill(grdFill);
         // console.log("grdFillVals",grdFillVals)
-        var gsLst = grdFill['a:gsLst']['a:gs']
+        const gsLst = grdFill['a:gsLst']['a:gs']
         // get start color
-        var startColorNode, endColorNode
-        var colorArray = []
-        var tintArray = []
+        // let startColorNode
+        // let endColorNode
+        const colorArray = []
+        const tintArray = []
         for (let i = 0; i < gsLst.length; i++) {
-          var lo_tint
-          var lo_color
+          let loTint
+          let loColor
           if (gsLst[i]['a:srgbClr'] !== undefined) {
-            lo_color = getTextByPathList(gsLst[i], ['a:srgbClr', 'attrs', 'val']) // #...
-            lo_tint = getTextByPathList(gsLst[i], ['a:srgbClr', 'a:tint', 'attrs', 'val'])
+            loColor = getTextByPathList(gsLst[i], ['a:srgbClr', 'attrs', 'val']) // #...
+            loTint = getTextByPathList(gsLst[i], ['a:srgbClr', 'a:tint', 'attrs', 'val'])
           } else if (gsLst[i]['a:schemeClr'] !== undefined) { // a:schemeClr
-            var schemeClr = getTextByPathList(gsLst[i], ['a:schemeClr', 'attrs', 'val'])
-            lo_color = getSchemeColorFromTheme('a:' + schemeClr, slideMasterContent) // #...
-            lo_tint = getTextByPathList(gsLst[i], ['a:schemeClr', 'a:tint', 'attrs', 'val'])
+            const schemeClr = getTextByPathList(gsLst[i], ['a:schemeClr', 'attrs', 'val'])
+            loColor = getSchemeColorFromTheme('a:' + schemeClr, slideMasterContent) // #...
+            loTint = getTextByPathList(gsLst[i], ['a:schemeClr', 'a:tint', 'attrs', 'val'])
             // console.log("schemeClr",schemeClr,slideMasterContent)
           }
-          // console.log("lo_color",lo_color)
-          colorArray[i] = lo_color
-          tintArray[i] = (lo_tint !== undefined) ? parseInt(lo_tint) / 100000 : 1
+          // console.log("loColor",loColor)
+          colorArray[i] = loColor
+          tintArray[i] = (loTint !== undefined) ? parseInt(loTint) / 100000 : 1
         }
         // console.log("colorArray",colorArray,"tintArray",tintArray)
         // get rot
-        var lin = grdFill['a:lin']
-        var rot = 90
+        const lin = grdFill['a:lin']
+        let rot = 90
         if (lin !== undefined) {
           rot = angleToDegrees(lin['attrs']['ang']) + 90
         }
@@ -2636,8 +2643,8 @@ function getSlideBackgroundFill (slideContent, slideLayoutContent, slideMasterCo
         }
       } else if (bgFillTyp === 'PIC_FILL') {
         // console.log("bgPr",bgPr,"bgFillTyp",bgFillTyp)
-        var picFillBase64 = getPicFill('layoutBg', bgPr['a:blipFill'], warpObj)
-        var ordr = bgPr['attrs']['order']
+        const picFillBase64 = getPicFill('layoutBg', bgPr['a:blipFill'], warpObj)
+        const ordr = bgPr['attrs']['order']
         // a:srcRect
         // a:stretch => a:fillRect =>attrs (l:-17000, r:-17000)
         bgcolor = 'background-image: url(' + picFillBase64 + ');  z-index: ' + ordr + ';'
@@ -2652,41 +2659,42 @@ function getSlideBackgroundFill (slideContent, slideLayoutContent, slideMasterCo
 
       // console.log("bgRef",bgRef["a:schemeClr"]["attrs"]["val"])
       if (bgPr !== undefined) {
-        var bgFillTyp = getFillType(bgPr)
+        const bgFillTyp = getFillType(bgPr)
         if (bgFillTyp === 'SOLID_FILL') {
-          var sldFill = bgPr['a:solidFill']
-          var bgColor = getSolidFill(sldFill)
-          var sldTint = getColorOpacity(sldFill)
+          const sldFill = bgPr['a:solidFill']
+          const bgColor = getSolidFill(sldFill)
+          const sldTint = getColorOpacity(sldFill)
           bgcolor = 'background: rgba(' + hexToRgbNew(bgColor) + ',' + sldTint + ');'
         } else if (bgFillTyp === 'GRADIENT_FILL') {
-          var grdFill = bgPr['a:gradFill']
-          // var grdFillVals =  getGradientFill(grdFill);
+          const grdFill = bgPr['a:gradFill']
+          // const grdFillVals =  getGradientFill(grdFill);
           // console.log("grdFillVals",grdFillVals)
-          var gsLst = grdFill['a:gsLst']['a:gs']
+          const gsLst = grdFill['a:gsLst']['a:gs']
           // get start color
-          var startColorNode, endColorNode
-          var colorArray = []
-          var tintArray = []
+          // let startColorNode
+          // let endColorNode
+          const colorArray = []
+          const tintArray = []
           for (let i = 0; i < gsLst.length; i++) {
-            var lo_tint
-            var lo_color
+            let loTint
+            let loColor
             if (gsLst[i]['a:srgbClr'] !== undefined) {
-              lo_color = getTextByPathList(gsLst[i], ['a:srgbClr', 'attrs', 'val']) // #...
-              lo_tint = getTextByPathList(gsLst[i], ['a:srgbClr', 'a:tint', 'attrs', 'val'])
+              loColor = getTextByPathList(gsLst[i], ['a:srgbClr', 'attrs', 'val']) // #...
+              loTint = getTextByPathList(gsLst[i], ['a:srgbClr', 'a:tint', 'attrs', 'val'])
             } else if (gsLst[i]['a:schemeClr'] !== undefined) { // a:schemeClr
-              var schemeClr = getTextByPathList(gsLst[i], ['a:schemeClr', 'attrs', 'val'])
-              lo_color = getSchemeColorFromTheme('a:' + schemeClr, slideMasterContent) // #...
-              lo_tint = getTextByPathList(gsLst[i], ['a:schemeClr', 'a:tint', 'attrs', 'val'])
+              const schemeClr = getTextByPathList(gsLst[i], ['a:schemeClr', 'attrs', 'val'])
+              loColor = getSchemeColorFromTheme('a:' + schemeClr, slideMasterContent) // #...
+              loTint = getTextByPathList(gsLst[i], ['a:schemeClr', 'a:tint', 'attrs', 'val'])
               // console.log("schemeClr",schemeClr,slideMasterContent)
             }
-            // console.log("lo_color",lo_color)
-            colorArray[i] = lo_color
-            tintArray[i] = (lo_tint !== undefined) ? parseInt(lo_tint) / 100000 : 1
+            // console.log("loColor",loColor)
+            colorArray[i] = loColor
+            tintArray[i] = (loTint !== undefined) ? parseInt(loTint) / 100000 : 1
           }
           // console.log("colorArray",colorArray,"tintArray",tintArray)
           // get rot
-          var lin = grdFill['a:lin']
-          var rot = 90
+          const lin = grdFill['a:lin']
+          let rot = 90
           if (lin !== undefined) {
             rot = angleToDegrees(lin['attrs']['ang']) + 90
           }
@@ -2701,29 +2709,28 @@ function getSlideBackgroundFill (slideContent, slideLayoutContent, slideMasterCo
           }
         } else if (bgFillTyp === 'PIC_FILL') {
           // console.log("bgPr",bgPr,"bgFillTyp",bgFillTyp)
-          bgcolor = 'background: yellow;'
-          var picFillBase64 = getPicFill('masterBg', bgPr['a:blipFill'], warpObj)
-          var ordr = bgPr['attrs']['order']
+          const picFillBase64 = getPicFill('masterBg', bgPr['a:blipFill'], warpObj)
+          const ordr = bgPr['attrs']['order']
           // a:srcRect
           // a:stretch => a:fillRect =>attrs (l:-17000, r:-17000)
           bgcolor = 'background-image: url(' + picFillBase64 + ');  z-index: ' + ordr + ';'
           // console.log(warpObj);
         }
       } else if (bgRef !== undefined) {
-        // var obj={
+        // const obj={
         //    "a:solidFill": bgRef
         // }
-        // var phClr = getSolidFill(bgRef);
-        var phClr
+        // const phClr = getSolidFill(bgRef);
+        let phClr
         if (bgRef['a:srgbClr'] !== undefined) {
           phClr = getTextByPathList(bgRef, ['a:srgbClr', 'attrs', 'val']) // #...
         } else if (bgRef['a:schemeClr'] !== undefined) { // a:schemeClr
-          var schemeClr = getTextByPathList(bgRef, ['a:schemeClr', 'attrs', 'val'])
+          const schemeClr = getTextByPathList(bgRef, ['a:schemeClr', 'attrs', 'val'])
 
           phClr = getSchemeColorFromTheme('a:' + schemeClr, slideMasterContent) // #...
           // console.log("phClr",phClr)
         }
-        var idx = Number(bgRef['attrs']['idx'])
+        const idx = Number(bgRef['attrs']['idx'])
         // console.log("phClr=",phClr,"idx=",idx)
 
         if (idx === 0 || idx === 1000) {
@@ -2735,53 +2742,54 @@ function getSlideBackgroundFill (slideContent, slideLayoutContent, slideMasterCo
         } else if (idx > 1000) {
           // bgFillStyleLst  in themeContent
           // themeContent["a:fmtScheme"]["a:bgFillStyleLst"]
-          var trueIdx = idx - 1000
-          var bgFillLst = themeContent['a:theme']['a:themeElements']['a:fmtScheme']['a:bgFillStyleLst']
-          var sortblAry = []
+          const trueIdx = idx - 1000
+          const bgFillLst = themeContent['a:theme']['a:themeElements']['a:fmtScheme']['a:bgFillStyleLst']
+          const sortblAry = []
           Object.keys(bgFillLst).forEach(function (key) {
             // console.log("cubicBezTo["+key+"]:");
             const bgFillLstTyp = bgFillLst[key]
             if (key !== 'attrs') {
               if (bgFillLstTyp.constructor === Array) {
                 for (let i = 0; i < bgFillLstTyp.length; i++) {
-                  var obj = {}
+                  const obj = {}
                   obj[key] = bgFillLstTyp[i]
                   obj['idex'] = bgFillLstTyp[i]['attrs']['order']
                   sortblAry.push(obj)
                 }
               } else {
-                var obj = {}
+                const obj = {}
                 obj[key] = bgFillLstTyp
                 obj['idex'] = bgFillLstTyp['attrs']['order']
                 sortblAry.push(obj)
               }
             }
           })
-          var sortByOrder = sortblAry.slice(0)
+          const sortByOrder = sortblAry.slice(0)
           sortByOrder.sort(function (a, b) {
             return a.idex - b.idex
           })
-          var bgFillLstIdx = sortByOrder[trueIdx - 1]
-          var bgFillTyp = getFillType(bgFillLstIdx)
+          const bgFillLstIdx = sortByOrder[trueIdx - 1]
+          const bgFillTyp = getFillType(bgFillLstIdx)
           // console.log("bgFillLstIdx",bgFillLstIdx);
           if (bgFillTyp === 'SOLID_FILL') {
-            var sldFill = bgFillLstIdx['a:solidFill']
-            var sldTint = getColorOpacity(sldFill)
+            const sldFill = bgFillLstIdx['a:solidFill']
+            const sldTint = getColorOpacity(sldFill)
             bgcolor = 'background: rgba(' + hexToRgbNew(phClr) + ',' + sldTint + ');'
           } else if (bgFillTyp === 'GRADIENT_FILL') {
-            var grdFill = bgFillLstIdx['a:gradFill']
-            var gsLst = grdFill['a:gsLst']['a:gs']
+            const grdFill = bgFillLstIdx['a:gradFill']
+            const gsLst = grdFill['a:gsLst']['a:gs']
             // get start color
-            var startColorNode, endColorNode
-            var tintArray = []
+            // let startColorNode
+            // let endColorNode
+            const tintArray = []
             for (let i = 0; i < gsLst.length; i++) {
-              var lo_tint = getTextByPathList(gsLst[i], ['a:schemeClr', 'a:tint', 'attrs', 'val'])
-              tintArray[i] = (lo_tint !== undefined) ? parseInt(lo_tint) / 100000 : 1
+              const loTint = getTextByPathList(gsLst[i], ['a:schemeClr', 'a:tint', 'attrs', 'val'])
+              tintArray[i] = (loTint !== undefined) ? parseInt(loTint) / 100000 : 1
             }
 
             // get rot
-            var lin = grdFill['a:lin']
-            var rot = 90
+            const lin = grdFill['a:lin']
+            let rot = 90
             if (lin !== undefined) {
               rot = angleToDegrees(lin['attrs']['ang']) + 90
             }
@@ -2825,18 +2833,18 @@ function getShapeFill (node, isSvgMode, warpObj) {
   if (fillType === 'NO_FILL') {
     return isSvgMode ? 'none' : 'background-color: initial;'
   } else if (fillType === 'SOLID_FILL') {
-    var shpFill = node['p:spPr']['a:solidFill']
+    const shpFill = node['p:spPr']['a:solidFill']
     fillColor = getSolidFill(shpFill)
   } else if (fillType === 'GRADIENT_FILL') {
-    var shpFill = node['p:spPr']['a:gradFill']
+    const shpFill = node['p:spPr']['a:gradFill']
     // fillColor = getSolidFill(shpFill);
     fillColor = getGradientFill(shpFill)
     // console.log("shpFill",shpFill,grndColor.color)
   } else if (fillType === 'PATTERN_FILL') {
-    var shpFill = node['p:spPr']['a:pattFill']
+    const shpFill = node['p:spPr']['a:pattFill']
     fillColor = getPatternFill(shpFill)
   } else if (fillType === 'PIC_FILL') {
-    var shpFill = node['p:spPr']['a:blipFill']
+    const shpFill = node['p:spPr']['a:blipFill']
     fillColor = getPicFill('slideBg', shpFill, warpObj)
   }
 
@@ -2923,13 +2931,13 @@ function getGradientFill (node) {
   const gsLst = node['a:gsLst']['a:gs']
   // get start color
   const colorArray = []
-  const tintArray = []
+  // const tintArray = []
   for (let i = 0; i < gsLst.length; i++) {
-    let lo_tint
-    let lo_color = getSolidFill(gsLst[i])
+    // let loTint
+    let loColor = getSolidFill(gsLst[i])
     if (gsLst[i]['a:srgbClr'] !== undefined) {
-      var lumMod = parseInt(getTextByPathList(node, ['a:srgbClr', 'a:lumMod', 'attrs', 'val'])) / 100000
-      var lumOff = parseInt(getTextByPathList(node, ['a:srgbClr', 'a:lumOff', 'attrs', 'val'])) / 100000
+      let lumMod = parseInt(getTextByPathList(node, ['a:srgbClr', 'a:lumMod', 'attrs', 'val'])) / 100000
+      let lumOff = parseInt(getTextByPathList(node, ['a:srgbClr', 'a:lumOff', 'attrs', 'val'])) / 100000
       if (isNaN(lumMod)) {
         lumMod = 1.0
       }
@@ -2937,10 +2945,10 @@ function getGradientFill (node) {
         lumOff = 0
       }
       // console.log([lumMod, lumOff]);
-      lo_color = applyLumModify(lo_color, lumMod, lumOff)
+      loColor = applyLumModify(loColor, lumMod, lumOff)
     } else if (gsLst[i]['a:schemeClr'] !== undefined) { // a:schemeClr
-      var lumMod = parseInt(getTextByPathList(gsLst[i], ['a:schemeClr', 'a:lumMod', 'attrs', 'val'])) / 100000
-      var lumOff = parseInt(getTextByPathList(gsLst[i], ['a:schemeClr', 'a:lumOff', 'attrs', 'val'])) / 100000
+      let lumMod = parseInt(getTextByPathList(gsLst[i], ['a:schemeClr', 'a:lumMod', 'attrs', 'val'])) / 100000
+      let lumOff = parseInt(getTextByPathList(gsLst[i], ['a:schemeClr', 'a:lumOff', 'attrs', 'val'])) / 100000
       if (isNaN(lumMod)) {
         lumMod = 1.0
       }
@@ -2948,10 +2956,10 @@ function getGradientFill (node) {
         lumOff = 0
       }
       // console.log([lumMod, lumOff]);
-      lo_color = applyLumModify(lo_color, lumMod, lumOff)
+      loColor = applyLumModify(loColor, lumMod, lumOff)
     }
-    // console.log("lo_color",lo_color)
-    colorArray[i] = lo_color
+    // console.log("loColor",loColor)
+    colorArray[i] = loColor
   }
   // get rot
   const lin = node['a:lin']
@@ -2995,10 +3003,8 @@ function getPicFill (type, node, warpObj) {
 
 function getPatternFill (node) {
   // Need to test/////////////////////////////////////////////
-  let color = ''
   const bgClr = node['a:bgClr']
-  color = getSolidFill(bgClr)
-  return color
+  return getSolidFill(bgClr)
 }
 
 function getSolidFill (node) {
@@ -3016,11 +3022,11 @@ function getSolidFill (node) {
     color = getSchemeColorFromTheme('a:' + schemeClr, undefined) // #...
   } else if (node['a:scrgbClr'] !== undefined) {
     // <a:scrgbClr r="50%" g="50%" b="50%"/>  //Need to test/////////////////////////////////////////////
-    var defBultColorVals = node['a:scrgbClr']['attrs']
+    const defBultColorVals = node['a:scrgbClr']['attrs']
     const red = (defBultColorVals['r'].indexOf('%') !== -1) ? defBultColorVals['r'].split('%').shift() : defBultColorVals['r']
     const green = (defBultColorVals['g'].indexOf('%') !== -1) ? defBultColorVals['g'].split('%').shift() : defBultColorVals['g']
     const blue = (defBultColorVals['b'].indexOf('%') !== -1) ? defBultColorVals['b'].split('%').shift() : defBultColorVals['b']
-    const scrgbClr = red + ',' + green + ',' + blue
+    // const scrgbClr = red + ',' + green + ',' + blue
     color = toHex(255 * (Number(red) / 100)) + toHex(255 * (Number(green) / 100)) + toHex(255 * (Number(blue) / 100))
     // console.log("scrgbClr: " + scrgbClr);
   } else if (node['a:prstClr'] !== undefined) {
@@ -3030,11 +3036,11 @@ function getSolidFill (node) {
     // console.log("prstClr: " + prstClr+" => hexClr: "+color);
   } else if (node['a:hslClr'] !== undefined) {
     // <a:hslClr hue="14400000" sat="100%" lum="50%"/>  //Need to test/////////////////////////////////////////////
-    var defBultColorVals = node['a:hslClr']['attrs']
+    const defBultColorVals = node['a:hslClr']['attrs']
     const hue = Number(defBultColorVals['hue']) / 100000
     const sat = Number((defBultColorVals['sat'].indexOf('%') !== -1) ? defBultColorVals['sat'].split('%').shift() : defBultColorVals['sat']) / 100
     const lum = Number((defBultColorVals['lum'].indexOf('%') !== -1) ? defBultColorVals['lum'].split('%').shift() : defBultColorVals['lum']) / 100
-    const hslClr = defBultColorVals['hue'] + ',' + defBultColorVals['sat'] + ',' + defBultColorVals['lum']
+    // const hslClr = defBultColorVals['hue'] + ',' + defBultColorVals['sat'] + ',' + defBultColorVals['lum']
     const hsl2rgb = hslToRgb(hue, sat, lum)
     color = toHex(hsl2rgb.r) + toHex(hsl2rgb.g) + toHex(hsl2rgb.b)
     // defBultColor = cnvrtHslColor2Hex(hslClr); //TODO
@@ -3097,32 +3103,32 @@ function getColorOpacity (solidFill) {
   let opcity = 1
 
   if (solidFill['a:srgbClr'] !== undefined) {
-    var tint = getTextByPathList(solidFill, ['a:srgbClr', 'a:tint', 'attrs', 'val'])
+    const tint = getTextByPathList(solidFill, ['a:srgbClr', 'a:tint', 'attrs', 'val'])
     if (tint !== undefined) {
       opcity = parseInt(tint) / 100000
     }
   } else if (solidFill['a:schemeClr'] !== undefined) {
-    var tint = getTextByPathList(solidFill, ['a:schemeClr', 'a:tint', 'attrs', 'val'])
+    const tint = getTextByPathList(solidFill, ['a:schemeClr', 'a:tint', 'attrs', 'val'])
     if (tint !== undefined) {
       opcity = parseInt(tint) / 100000
     }
   } else if (solidFill['a:scrgbClr'] !== undefined) {
-    var tint = getTextByPathList(solidFill, ['a:scrgbClr', 'a:tint', 'attrs', 'val'])
+    const tint = getTextByPathList(solidFill, ['a:scrgbClr', 'a:tint', 'attrs', 'val'])
     if (tint !== undefined) {
       opcity = parseInt(tint) / 100000
     }
   } else if (solidFill['a:prstClr'] !== undefined) {
-    var tint = getTextByPathList(solidFill, ['a:prstClr', 'a:tint', 'attrs', 'val'])
+    const tint = getTextByPathList(solidFill, ['a:prstClr', 'a:tint', 'attrs', 'val'])
     if (tint !== undefined) {
       opcity = parseInt(tint) / 100000
     }
   } else if (solidFill['a:hslClr'] !== undefined) {
-    var tint = getTextByPathList(solidFill, ['a:hslClr', 'a:tint', 'attrs', 'val'])
+    const tint = getTextByPathList(solidFill, ['a:hslClr', 'a:tint', 'attrs', 'val'])
     if (tint !== undefined) {
       opcity = parseInt(tint) / 100000
     }
   } else if (solidFill['a:sysClr'] !== undefined) {
-    var tint = getTextByPathList(solidFill, ['a:sysClr', 'a:tint', 'attrs', 'val'])
+    const tint = getTextByPathList(solidFill, ['a:sysClr', 'a:tint', 'attrs', 'val'])
     if (tint !== undefined) {
       opcity = parseInt(tint) / 100000
     }
@@ -3160,20 +3166,20 @@ function getSchemeColorFromTheme (schemeClr, sldMasterNode) {
 }
 
 function extractChartData (serNode) {
-  const dataMat = new Array()
+  const dataMat = []
 
   if (serNode === undefined) {
     return dataMat
   }
 
   if (serNode['c:xVal'] !== undefined) {
-    var dataRow = new Array()
+    let dataRow = []
     eachElement(serNode['c:xVal']['c:numRef']['c:numCache']['c:pt'], function (innerNode, index) {
       dataRow.push(parseFloat(innerNode['c:v']))
       return ''
     })
     dataMat.push(dataRow)
-    dataRow = new Array()
+    dataRow = []
     eachElement(serNode['c:yVal']['c:numRef']['c:numCache']['c:pt'], function (innerNode, index) {
       dataRow.push(parseFloat(innerNode['c:v']))
       return ''
@@ -3181,7 +3187,7 @@ function extractChartData (serNode) {
     dataMat.push(dataRow)
   } else {
     eachElement(serNode, function (innerNode, index) {
-      const dataRow = new Array()
+      const dataRow = []
       const colName = getTextByPathList(innerNode, ['c:tx', 'c:strRef', 'c:strCache', 'c:pt', 'c:v']) || index
 
       // Category (string or number)
@@ -3227,7 +3233,7 @@ function getTextByPathStr (node, pathStr) {
 /**
  * getTextByPathList
  * @param {Object} node
- * @param {string Array} path
+ * @param {Array.<string>} path
  */
 function getTextByPathList (node, path) {
   if (path.constructor !== Array) {
@@ -3270,28 +3276,30 @@ function eachElement (node, doFunction) {
   return result
 }
 
+/*
 // ===== Color functions =====
-/**
+/!**
  * applyShade
  * @param {string} rgbStr
  * @param {number} shadeValue
- */
+ *!/
 function applyShade (rgbStr, shadeValue) {
   const color = new colz.Color(rgbStr)
   color.setLum(color.hsl.l * shadeValue)
   return color.rgb.toString()
 }
 
-/**
+/!**
  * applyTint
  * @param {string} rgbStr
  * @param {number} tintValue
- */
+ *!/
 function applyTint (rgbStr, tintValue) {
   const color = new colz.Color(rgbStr)
   color.setLum(color.hsl.l * tintValue + (1 - tintValue))
   return color.rgb.toString()
 }
+*/
 
 /**
  * applyLumModify
