@@ -1,0 +1,25 @@
+{
+  "name": "pptx2html",
+  "version": "0.2.7",
+  "description": "PPTX2HTML",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arantes555/PPTX2HTML.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/arantes555/PPTX2HTML/issues"
+  },
+  "homepage": "https://github.com/arantes555/PPTX2HTML#readme",
+  "devDependencies": {
+    "standard": "^10.0.3"
+  }
+}

@@ -1778,7 +1778,7 @@ function genTable (node, warpObj) {
                         const rowTxtStyl = thisTblStyle["a:wholeTbl"]["a:tcTxStyle"];
                         if(rowTxtStyl !== undefined){
                         }
-                    }*/
+                    } */
         } else {
           if (thisTblStyle['a:band1H'] !== undefined) {
             const bgFillschemeClr = getTextByPathList(thisTblStyle, ['a:band1H', 'a:tcStyle', 'a:fill', 'a:solidFill'])
