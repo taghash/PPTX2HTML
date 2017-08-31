@@ -7,7 +7,10 @@
     "test": "test"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build_main": "rollup -c -m -i src/pptx2html.js -o dist/pptx2html.js -f iife -n pptx2html",
+    "build_worker": "rollup -c -m -i src/worker.js -o dist/worker.js -f iife -n pptx2html_worker",
+    "build": "npm run build_main && npm run build_worker"
   },
   "repository": {
     "type": "git",
@@ -20,6 +23,19 @@
   },
   "homepage": "https://github.com/arantes555/PPTX2HTML#readme",
   "devDependencies": {
+    "rollup": "^0.49.2",
+    "rollup-plugin-commonjs": "^8.2.0",
+    "rollup-plugin-node-resolve": "^3.0.0",
     "standard": "^10.0.3"
+  },
+  "dependencies": {
+    "colz": "^0.1.0",
+    "d3": "^3.5.17",
+    "jquery": "^3.2.1",
+    "jszip": "^3.1.4",
+    "jszip-utils": "0.0.2",
+    "lz-string": "^1.4.4",
+    "nvd3": "^1.8.6",
+    "txml": "^2.0.20"
   }
 }
