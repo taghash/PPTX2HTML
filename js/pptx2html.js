@@ -20,67 +20,65 @@ $(document).ready(function () {
       if (err) return console.error(err)
       const blob = new Blob([content])
       const reader = new FileReader()
-      reader.onload = (function () {
-        return function (e) {
-          // Web Worker
-          worker = new Worker('./js/worker.js')
+      reader.onload = function (fileEvent) {
+        // Web Worker
+        worker = new Worker('./js/worker.js')
 
-          worker.addEventListener('message', function (e) {
-            const msg = e.data
+        worker.addEventListener('message', function (workerEvent) {
+          const msg = workerEvent.data
 
-            switch (msg.type) {
-              case 'slide':
-                $result.append(msg.data)
-                break
-              case 'processMsgQueue':
-                processMsgQueue(msg.data)
-                break
-              case 'pptx-thumb':
-                $('#pptx-thumb').attr('src', 'data:image/jpeg;base64,' + msg.data)
-                break
-              case 'slideSize':
-                if (localStorage) {
-                  localStorage.setItem('slideWidth', msg.data.width)
-                  localStorage.setItem('slideHeight', msg.data.height)
-                } else {
-                  alert('Browser don\'t support Web Storage!')
-                }
-                break
-              case 'globalCSS':
-                $result.append('<style>' + msg.data + '</style>')
-                break
-              case 'ExecutionTime':
-                // var script = document.createElement('script');
-                // script.src = "js/numeric.js";
-                // script.async = true;
-                // document.head.appendChild(script);
-                isDone = true
-                worker.postMessage({
-                  'type': 'getMsgQueue'
-                })
-                break
-              case 'WARN':
-                // console.warn('Worker: ', msg.data);
-                break
-              case 'ERROR':
-                // console.error('Worker: ', msg.data);
-                $('#error_block').text(msg.data)
-                break
-              case 'DEBUG':
-                // console.debug('Worker: ', msg.data);
-                break
-              case 'INFO':
-              default:
-              // console.info('Worker: ', msg.data);
-            }
-          }, false)
+          switch (msg.type) {
+            case 'slide':
+              $result.append(msg.data)
+              break
+            case 'processMsgQueue':
+              processMsgQueue(msg.data)
+              break
+            case 'pptx-thumb':
+              $('#pptx-thumb').attr('src', 'data:image/jpeg;base64,' + msg.data)
+              break
+            case 'slideSize':
+              if (localStorage) {
+                localStorage.setItem('slideWidth', msg.data.width)
+                localStorage.setItem('slideHeight', msg.data.height)
+              } else {
+                alert('Browser don\'t support Web Storage!')
+              }
+              break
+            case 'globalCSS':
+              $result.append('<style>' + msg.data + '</style>')
+              break
+            case 'ExecutionTime':
+              // var script = document.createElement('script');
+              // script.src = "js/numeric.js";
+              // script.async = true;
+              // document.head.appendChild(script);
+              isDone = true
+              worker.postMessage({
+                'type': 'getMsgQueue'
+              })
+              break
+            case 'WARN':
+              // console.warn('Worker: ', msg.data);
+              break
+            case 'ERROR':
+              // console.error('Worker: ', msg.data);
+              $('#error_block').text(msg.data)
+              break
+            case 'DEBUG':
+              // console.debug('Worker: ', msg.data);
+              break
+            case 'INFO':
+            default:
+            // console.info('Worker: ', msg.data);
+          }
+        }, false)
 
-          worker.postMessage({
-            'type': 'processPPTX',
-            'data': e.target.result
-          })
-        }
-      })(blob)
+        worker.postMessage({
+          'type': 'processPPTX',
+          'data': fileEvent.target.result
+        })
+      }
       reader.readAsArrayBuffer(blob)
     })
 
@@ -126,12 +124,12 @@ function processSingleMsg (d) {
       data = chartData
       chart = nv.models.lineChart()
         .useInteractiveGuideline(true)
-      chart.xAxis.tickFormat(function (d) { return chartData[0].xlabels[d] || d })
+      chart.xAxis.tickFormat(x => chartData[0].xlabels[x] || x)
       break
     case 'barChart':
       data = chartData
       chart = nv.models.multiBarChart()
-      chart.xAxis.tickFormat(function (d) { return chartData[0].xlabels[d] || d })
+      chart.xAxis.tickFormat(x => chartData[0].xlabels[x] || x)
       break
     case 'pieChart':
     case 'pie3DChart':
@@ -143,7 +141,7 @@ function processSingleMsg (d) {
       chart = nv.models.stackedAreaChart()
         .clipEdge(true)
         .useInteractiveGuideline(true)
-      chart.xAxis.tickFormat(function (d) { return chartData[0].xlabels[d] || d })
+      chart.xAxis.tickFormat(x => chartData[0].xlabels[x] || x)
       break
     case 'scatterChart':
 

@@ -3,7 +3,6 @@
 
 importScripts(
   './jszip.min.js',
-  './highlight.min.js',
   './colz.class.min.js',
   './tXml.js'
 )
