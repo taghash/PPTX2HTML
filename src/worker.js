@@ -1441,12 +1441,15 @@ function genBuChar (node, slideLayoutSpNode, slideMasterSpNode, type, warpObj) {
   // console.log("NumericTypr: " + buNum);
   // console.log("buChar: " + (buChar === undefined?'':buChar.charCodeAt(0)));
   // get definde bullet COLOR
-  const buClrNode = pPrNode['a:buClr']
   let defBultColor = 'NoNe'
-  if (buClrNode !== undefined) {
-    defBultColor = getSolidFill(buClrNode)
-  } else {
-    // console.log("buClrNode: " + buClrNode);
+
+  if (pPrNode) {
+    const buClrNode = pPrNode['a:buClr']
+    if (buClrNode !== undefined) {
+      defBultColor = getSolidFill(buClrNode)
+    } else {
+      // console.log("buClrNode: " + buClrNode);
+    }
   }
 
   if (defBultColor === 'NoNe') {
@@ -3190,6 +3193,7 @@ function getSchemeColorFromTheme (schemeClr, sldMasterNode) {
 }
 
 function extractChartData (serNode) {
+  console.log('PARSING PPTX CHART:', serNode)
   const dataMat = []
 
   if (serNode === undefined) {

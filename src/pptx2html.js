@@ -1,11 +1,12 @@
-/* global Blob, FileReader, Worker, localStorage, alert */
+/* global Blob, FileReader, Worker, localStorage, alert, dimple */
 'use strict'
 
 import $ from 'jquery'
-import * as JSZipUtils from 'jszip-utils'
+import JSZipUtils from 'jszip-utils'
 import * as LZString from 'lz-string'
 import * as d3 from 'd3'
-import * as nv from 'nvd3'
+
+window.d3 = d3
 
 $(document).ready(function () {
   if (window.Worker) {
@@ -22,7 +23,7 @@ $(document).ready(function () {
       JSZipUtils.getBinaryContent(url, callback)
     }
 
-    loadFile('Sample_12.pptx', function (err, content) {
+    loadFile('test.pptx', function (err, content) {
       if (err) return console.error(err)
       const blob = new Blob([content])
       const reader = new FileReader()
@@ -117,40 +118,111 @@ function processMsgQueue (queue) {
   }
 }
 
+function convertChartData (chartData) {
+  const data = []
+  const xLabels = []
+  const groupLabels = []
+  chartData.forEach((group, i) => {
+    const groupName = group.key
+    groupLabels[i] = group.key
+    group.values.forEach((value, j) => {
+      const labelName = group.xlabels[j]
+      xLabels[j] = group.xlabels[j]
+      data.push({name: labelName, group: groupName, value: value.y})
+    })
+  })
+  console.log('TRANSFORMED DATA:', (data))
+  return {data, xLabels, groupLabels}
+}
+
 function processSingleMsg (d) {
   const chartID = d.chartID
   const chartType = d.chartType
   const chartData = d.chartData
+  console.log(`WRITING GRAPH OF TYPE ${chartType} TO ID #${chartID}:`, chartData)
 
   let data = []
 
-  let chart = null
   switch (chartType) {
-    case 'lineChart':
-      data = chartData
-      chart = nv.models.lineChart()
-        .useInteractiveGuideline(true)
-      chart.xAxis.tickFormat(x => chartData[0].xlabels[x] || x)
-      break
-    case 'barChart':
-      data = chartData
-      chart = nv.models.multiBarChart()
-      chart.xAxis.tickFormat(x => chartData[0].xlabels[x] || x)
-      break
-    case 'pieChart':
-    case 'pie3DChart':
-      data = chartData[0].values
-      chart = nv.models.pieChart()
-      break
-    case 'areaChart':
-      data = chartData
-      chart = nv.models.stackedAreaChart()
-        .clipEdge(true)
-        .useInteractiveGuideline(true)
-      chart.xAxis.tickFormat(x => chartData[0].xlabels[x] || x)
-      break
-    case 'scatterChart':
+    case 'lineChart': {
+      const {data: data_, xLabels, groupLabels} = convertChartData(chartData)
+      data = data_
+      const container = document.getElementById(chartID)
+      const svg = dimple.newSvg('#' + chartID, container.style.width, container.style.height)
 
+      // eslint-disable-next-line new-cap
+      const myChart = new dimple.chart(svg, data)
+      const xAxis = myChart.addCategoryAxis('x', 'name')
+      xAxis.addOrderRule(xLabels)
+      xAxis.addGroupOrderRule(groupLabels)
+      xAxis.title = null
+      const yAxis = myChart.addMeasureAxis('y', 'value')
+      yAxis.title = null
+      myChart.addSeries('group', dimple.plot.line)
+      myChart.addLegend(60, 10, 500, 20, 'right')
+      myChart.draw()
+
+      break
+    }
+    case 'barChart': {
+      const {data: data_, xLabels, groupLabels} = convertChartData(chartData)
+      data = data_
+      const container = document.getElementById(chartID)
+      const svg = dimple.newSvg('#' + chartID, container.style.width, container.style.height)
+
+      // eslint-disable-next-line new-cap
+      const myChart = new dimple.chart(svg, data)
+      const xAxis = myChart.addCategoryAxis('x', ['name', 'group'])
+      xAxis.addOrderRule(xLabels)
+      xAxis.addGroupOrderRule(groupLabels)
+      xAxis.title = null
+      const yAxis = myChart.addMeasureAxis('y', 'value')
+      yAxis.title = null
+      myChart.addSeries('group', dimple.plot.bar)
+      myChart.addLegend(60, 10, 500, 20, 'right')
+      myChart.draw()
+      break
+    }
+    case 'pieChart':
+    case 'pie3DChart': {
+      // data = chartData[0].values
+      // chart = nv.models.pieChart()
+      // nvDraw(chart, data)
+      const {data: data_, groupLabels} = convertChartData(chartData)
+      data = data_
+      const container = document.getElementById(chartID)
+      const svg = dimple.newSvg('#' + chartID, container.style.width, container.style.height)
+
+      // eslint-disable-next-line new-cap
+      const myChart = new dimple.chart(svg, data)
+      const pieAxis = myChart.addMeasureAxis('p', 'value')
+      pieAxis.addOrderRule(groupLabels)
+      myChart.addSeries('name', dimple.plot.pie)
+      myChart.addLegend(50, 20, 400, 300, 'left')
+      myChart.draw()
+      break
+    }
+    case 'areaChart': {
+      const {data: data_, xLabels, groupLabels} = convertChartData(chartData)
+      data = data_
+      const container = document.getElementById(chartID)
+      const svg = dimple.newSvg('#' + chartID, container.style.width, container.style.height)
+
+      // eslint-disable-next-line new-cap
+      const myChart = new dimple.chart(svg, data)
+      const xAxis = myChart.addCategoryAxis('x', 'name')
+      xAxis.addOrderRule(xLabels)
+      xAxis.addGroupOrderRule(groupLabels)
+      xAxis.title = null
+      const yAxis = myChart.addMeasureAxis('y', 'value')
+      yAxis.title = null
+      myChart.addSeries('group', dimple.plot.area)
+      myChart.addLegend(60, 10, 500, 20, 'right')
+      myChart.draw()
+
+      break
+    }
+    case 'scatterChart': {
       for (let i = 0; i < chartData.length; i++) {
         const arr = []
         for (let j = 0; j < chartData[i].length; j++) {
@@ -160,24 +232,16 @@ function processSingleMsg (d) {
       }
 
       // data = chartData;
-      chart = nv.models.scatterChart()
-        .showDistX(true)
-        .showDistY(true)
-        .color(d3.scale.category10().range())
-      chart.xAxis.axisLabel('X').tickFormat(d3.format('.02f'))
-      chart.yAxis.axisLabel('Y').tickFormat(d3.format('.02f'))
+      // chart = nv.models.scatterChart()
+      //   .showDistX(true)
+      //   .showDistY(true)
+      //   .color(d3.scale.category10().range())
+      // chart.xAxis.axisLabel('X').tickFormat(d3.format('.02f'))
+      // chart.yAxis.axisLabel('Y').tickFormat(d3.format('.02f'))
+      // nvDraw(chart, data)
       break
+    }
     default:
-  }
-
-  if (chart !== null) {
-    d3.select('#' + chartID)
-      .append('svg')
-      .datum(data)
-      .transition().duration(500)
-      .call(chart)
-
-    nv.utils.windowResize(chart.update)
   }
 }
 
