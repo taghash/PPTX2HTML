@@ -61,24 +61,23 @@ self.onmessage = function (e) {
   }
 }
 
-function processPPTX (data) {
+async function processPPTX (data) {
+  const zip = await JSZip.loadAsync(data)
   const dateBefore = new Date()
 
-  const zip = new JSZip(data)
-
   if (zip.file('docProps/thumbnail.jpeg') !== null) {
-    const pptxThumbImg = base64ArrayBuffer(zip.file('docProps/thumbnail.jpeg').asArrayBuffer())
+    const pptxThumbImg = await zip.file('docProps/thumbnail.jpeg').async('base64')
     self.postMessage({
       'type': 'pptx-thumb',
       'data': pptxThumbImg
     })
   }
 
-  const filesInfo = getContentTypes(zip)
-  const slideSize = getSlideSize(zip)
-  themeContent = loadTheme(zip)
+  const filesInfo = await getContentTypes(zip)
+  const slideSize = await getSlideSize(zip)
+  themeContent = await loadTheme(zip)
 
-  tableStyles = readXmlFile(zip, 'ppt/tableStyles.xml')
+  tableStyles = await readXmlFile(zip, 'ppt/tableStyles.xml')
 
   self.postMessage({
     'type': 'slideSize',
@@ -88,7 +87,7 @@ function processPPTX (data) {
   const numOfSlides = filesInfo['slides'].length
   for (let i = 0; i < numOfSlides; i++) {
     const filename = filesInfo['slides'][i]
-    const slideHtml = processSingleSlide(zip, filename, i, slideSize)
+    const slideHtml = await processSingleSlide(zip, filename, i, slideSize)
     self.postMessage({
       'type': 'slide',
       'data': slideHtml
@@ -111,12 +110,13 @@ function processPPTX (data) {
   })
 }
 
-function readXmlFile (zip, filename) {
-  return tXml(zip.file(filename).asText())
+async function readXmlFile (zip, filename) {
+  return tXml(await zip.file(filename).async('text'))
 }
 
-function getContentTypes (zip) {
-  const ContentTypesJson = readXmlFile(zip, '[Content_Types].xml')
+async function getContentTypes (zip) {
+  const ContentTypesJson = await readXmlFile(zip, '[Content_Types].xml')
+  console.log('CONTENT TYPES JSON', ContentTypesJson)
   const subObj = ContentTypesJson['Types']['Override']
   const slidesLocArray = []
   const slideLayoutsLocArray = []
@@ -137,9 +137,9 @@ function getContentTypes (zip) {
   }
 }
 
-function getSlideSize (zip) {
+async function getSlideSize (zip) {
   // Pixel = EMUs * Resolution / 914400;  (Resolution = 96)
-  const content = readXmlFile(zip, 'ppt/presentation.xml')
+  const content = await readXmlFile(zip, 'ppt/presentation.xml')
   const sldSzAttrs = content['p:presentation']['p:sldSz']['attrs']
   return {
     'width': parseInt(sldSzAttrs['cx']) * 96 / 914400,
@@ -147,8 +147,8 @@ function getSlideSize (zip) {
   }
 }
 
-function loadTheme (zip) {
-  const preResContent = readXmlFile(zip, 'ppt/_rels/presentation.xml.rels')
+async function loadTheme (zip) {
+  const preResContent = await readXmlFile(zip, 'ppt/_rels/presentation.xml.rels')
   const relationshipArray = preResContent['Relationships']['Relationship']
   let themeURI
   if (relationshipArray.constructor === Array) {
@@ -169,7 +169,7 @@ function loadTheme (zip) {
   return readXmlFile(zip, 'ppt/' + themeURI)
 }
 
-function processSingleSlide (zip, sldFileName, index, slideSize) {
+async function processSingleSlide (zip, sldFileName, index, slideSize) {
   self.postMessage({
     'type': 'INFO',
     'data': 'Processing slide' + (index + 1)
@@ -180,7 +180,7 @@ function processSingleSlide (zip, sldFileName, index, slideSize) {
   // @sldFileName: ppt/slides/slide1.xml
   // @resName: ppt/slides/_rels/slide1.xml.rels
   const resName = sldFileName.replace('slides/slide', 'slides/_rels/slide') + '.rels'
-  const resContent = readXmlFile(zip, resName)
+  const resContent = await readXmlFile(zip, resName)
   let RelationshipArray = resContent['Relationships']['Relationship']
   let layoutFilename = ''
   const slideResObj = {}
@@ -207,7 +207,7 @@ function processSingleSlide (zip, sldFileName, index, slideSize) {
   }
   // console.log(slideResObj);
   // Open slideLayoutXX.xml
-  const slideLayoutContent = readXmlFile(zip, layoutFilename)
+  const slideLayoutContent = await readXmlFile(zip, layoutFilename)
   const slideLayoutTables = indexNodes(slideLayoutContent)
   const sldLayoutClrOvr = slideLayoutContent['p:sldLayout']['p:clrMapOvr']['a:overrideClrMapping']
 
@@ -220,7 +220,7 @@ function processSingleSlide (zip, sldFileName, index, slideSize) {
   // @resName: ppt/slideLayouts/slideLayout1.xml
   // @masterName: ppt/slideLayouts/_rels/slideLayout1.xml.rels
   const slideLayoutResFilename = layoutFilename.replace('slideLayouts/slideLayout', 'slideLayouts/_rels/slideLayout') + '.rels'
-  const slideLayoutResContent = readXmlFile(zip, slideLayoutResFilename)
+  const slideLayoutResContent = await readXmlFile(zip, slideLayoutResFilename)
   RelationshipArray = slideLayoutResContent['Relationships']['Relationship']
   let masterFilename = ''
   const layoutResObj = {}
@@ -241,14 +241,14 @@ function processSingleSlide (zip, sldFileName, index, slideSize) {
     masterFilename = RelationshipArray['attrs']['Target'].replace('../', 'ppt/')
   }
   // Open slideMasterXX.xml
-  const slideMasterContent = readXmlFile(zip, masterFilename)
+  const slideMasterContent = await readXmlFile(zip, masterFilename)
   const slideMasterTextStyles = getTextByPathList(slideMasterContent, ['p:sldMaster', 'p:txStyles'])
   const slideMasterTables = indexNodes(slideMasterContent)
 
   // ///////////////Amir/////////////
   // Open slideMasterXX.xml.rels
   const slideMasterResFilename = masterFilename.replace('slideMasters/slideMaster', 'slideMasters/_rels/slideMaster') + '.rels'
-  const slideMasterResContent = readXmlFile(zip, slideMasterResFilename)
+  const slideMasterResContent = await readXmlFile(zip, slideMasterResFilename)
   RelationshipArray = slideMasterResContent['Relationships']['Relationship']
   let themeFilename = ''
   const masterResObj = {}
@@ -271,10 +271,10 @@ function processSingleSlide (zip, sldFileName, index, slideSize) {
   // console.log(themeFilename)
   // Load Theme file
   if (themeFilename !== undefined) {
-    themeContent = readXmlFile(zip, themeFilename)
+    themeContent = await readXmlFile(zip, themeFilename)
   }
   // =====< Step 3 >=====
-  const slideContent = readXmlFile(zip, sldFileName)
+  const slideContent = await readXmlFile(zip, sldFileName)
   const nodes = slideContent['p:sld']['p:cSld']['p:spTree']
   const warpObj = {
     'zip': zip,
@@ -293,10 +293,10 @@ function processSingleSlide (zip, sldFileName, index, slideSize) {
   for (let nodeKey in nodes) {
     if (nodes[nodeKey].constructor === Array) {
       for (let i = 0; i < nodes[nodeKey].length; i++) {
-        result += processNodesInSlide(nodeKey, nodes[nodeKey][i], warpObj)
+        result += await processNodesInSlide(nodeKey, nodes[nodeKey][i], warpObj)
       }
     } else {
-      result += processNodesInSlide(nodeKey, nodes[nodeKey], warpObj)
+      result += await processNodesInSlide(nodeKey, nodes[nodeKey], warpObj)
     }
   }
 
@@ -356,7 +356,7 @@ function indexNodes (content) {
   return {'idTable': idTable, 'idxTable': idxTable, 'typeTable': typeTable}
 }
 
-function processNodesInSlide (nodeKey, nodeValue, warpObj) {
+async function processNodesInSlide (nodeKey, nodeValue, warpObj) {
   let result = ''
 
   switch (nodeKey) {
@@ -370,10 +370,10 @@ function processNodesInSlide (nodeKey, nodeValue, warpObj) {
       result = processPicNode(nodeValue, warpObj)
       break
     case 'p:graphicFrame':    // Chart, Diagram, Table
-      result = processGraphicFrameNode(nodeValue, warpObj)
+      result = await processGraphicFrameNode(nodeValue, warpObj)
       break
     case 'p:grpSp':    // 群組
-      result = processGroupSpNode(nodeValue, warpObj)
+      result = await processGroupSpNode(nodeValue, warpObj)
       break
     default:
   }
@@ -381,7 +381,7 @@ function processNodesInSlide (nodeKey, nodeValue, warpObj) {
   return result
 }
 
-function processGroupSpNode (node, warpObj) {
+async function processGroupSpNode (node, warpObj) {
   const factor = 96 / 914400
 
   const xfrmNode = node['p:grpSpPr']['a:xfrm']
@@ -402,10 +402,10 @@ function processGroupSpNode (node, warpObj) {
   for (let nodeKey in node) {
     if (node[nodeKey].constructor === Array) {
       for (let i = 0; i < node[nodeKey].length; i++) {
-        result += processNodesInSlide(nodeKey, node[nodeKey][i], warpObj)
+        result += await processNodesInSlide(nodeKey, node[nodeKey][i], warpObj)
       }
     } else {
-      result += processNodesInSlide(nodeKey, node[nodeKey], warpObj)
+      result += await processNodesInSlide(nodeKey, node[nodeKey], warpObj)
     }
   }
 
@@ -1265,7 +1265,7 @@ function processPicNode (node, warpObj) {
     '\'><img src=\'data:' + mimeType + ';base64,' + base64ArrayBuffer(imgArrayBuffer) + '\' style=\'width: 100%; height: 100%\'/></div>'
 }
 
-function processGraphicFrameNode (node, warpObj) {
+async function processGraphicFrameNode (node, warpObj) {
   let result = ''
   const graphicTypeUri = getTextByPathList(node, ['a:graphic', 'a:graphicData', 'attrs', 'uri'])
 
@@ -1274,7 +1274,7 @@ function processGraphicFrameNode (node, warpObj) {
       result = genTable(node, warpObj)
       break
     case 'http://schemas.openxmlformats.org/drawingml/2006/chart':
-      result = genChart(node, warpObj)
+      result = await genChart(node, warpObj)
       break
     case 'http://schemas.openxmlformats.org/drawingml/2006/diagram':
       result = genDiagram(node, warpObj)
@@ -1964,7 +1964,7 @@ function genTable (node, warpObj) {
   return tableHtml
 }
 
-function genChart (node, warpObj) {
+async function genChart (node, warpObj) {
   const order = node['attrs']['order']
   const xfrmNode = getTextByPathList(node, ['p:xfrm'])
   const result = '<div id=\'chart' + chartID + '\' class=\'block content\' style=\'' +
@@ -1973,7 +1973,7 @@ function genChart (node, warpObj) {
 
   const rid = node['a:graphic']['a:graphicData']['c:chart']['attrs']['r:id']
   const refName = warpObj['slideResObj'][rid]['target']
-  const content = readXmlFile(warpObj['zip'], refName)
+  const content = await readXmlFile(warpObj['zip'], refName)
   const plotArea = getTextByPathList(content, ['c:chartSpace', 'c:chart', 'c:plotArea'])
 
   let chartData = null
