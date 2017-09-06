@@ -3,12 +3,13 @@
 
 import $ from 'jquery'
 import JSZipUtils from 'jszip-utils'
-import * as LZString from 'lz-string'
+import LZString from 'lz-string'
 import * as d3 from 'd3'
 
 window.d3 = d3
 
 $(document).ready(function () {
+  console.log(LZString)
   if (window.Worker) {
     let worker
     const $result = $('#result')

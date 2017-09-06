@@ -1,7 +1,7 @@
-/* global self, btoa */
+/* global self, btoa, JSZip */
 'use strict'
 
-import JSZip from 'jszip'
+import 'jszip/dist/jszip'
 import tXml from 'txml'
 import * as colz from 'colz'
 
