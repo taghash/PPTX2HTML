@@ -2,7 +2,7 @@
 'use strict'
 
 import 'jszip/dist/jszip'
-import tXml from 'txml'
+import tXml from './txml'
 import * as colz from 'colz'
 
 function base64ArrayBuffer (arrayBuff) {
@@ -44,10 +44,14 @@ let chartID = 0
 const styleTable = {}
 
 let tableStyles
-self.onmessage = function (e) {
+self.onmessage = async function (e) {
   switch (e.data.type) {
     case 'processPPTX': {
-      processPPTX(e.data.data)
+      try {
+        await processPPTX(e.data.data)
+      } catch (e) {
+        console.error('AN ERROR HAPPENED DURING processPPTX', e)
+      }
       break
     }
     case 'getMsgQueue': {
@@ -111,7 +115,13 @@ async function processPPTX (data) {
 }
 
 async function readXmlFile (zip, filename) {
-  return tXml(await zip.file(filename).async('text'))
+  console.log('readXml 1')
+  const xmlFile = await zip.file(filename).async('text')
+  console.log('readXml 2')
+  const toto = tXml(xmlFile)
+  console.log('readXml 3', toto)
+
+  return toto
 }
 
 async function getContentTypes (zip) {
@@ -1589,9 +1599,9 @@ function genSpanElement (node, slideLayoutSpNode, slideMasterSpNode, type, warpO
   const slideMasterTextStyles = warpObj['slideMasterTextStyles']
 
   let text = node['a:t']
-  if (typeof text !== 'string') {
+  if (typeof text !== 'string' && !(text instanceof String)) {
     text = getTextByPathList(node, ['a:fld', 'a:t'])
-    if (typeof text !== 'string') {
+    if (typeof text !== 'string' && !(text instanceof String)) {
       text = '&nbsp;'
     }
   }
