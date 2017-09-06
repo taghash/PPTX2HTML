@@ -1,12 +1,11 @@
-/* global Blob, FileReader, Worker, localStorage, alert, dimple */
+/* global Blob, FileReader, Worker, localStorage, alert */
 'use strict'
 
 import $ from 'jquery'
 import JSZipUtils from 'jszip-utils'
 import LZString from 'lz-string'
-import * as d3 from 'd3'
-
-window.d3 = d3
+import 'd3'
+import dimple from 'dimple'
 
 $(document).ready(function () {
   console.log(LZString)
@@ -90,14 +89,6 @@ $(document).ready(function () {
       reader.readAsArrayBuffer(blob)
     })
 
-    $('#to-reveal-btn').click(function () {
-      if (localStorage) {
-        localStorage.setItem('slides', LZString.compressToUTF16($result.html()))
-        window.open('./reveal/demo.html', '_blank')
-      } else {
-        alert('Browser don\'t support Web Storage!')
-      }
-    })
     const stopWorker = setInterval(function () {
       if (isDone) {
         worker.terminate()
