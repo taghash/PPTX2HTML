@@ -8,9 +8,9 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build_main": "rollup -c -m -i src/pptx2html.js -o dist/pptx2html.js -f iife -n pptx2html",
+    "build_index": "rollup -c -m -i src/index.js -o dist/index.js -f iife -n pptx2html_index",
     "build_worker": "rollup -c -m -i src/worker.js -o dist/worker.js -f iife -n pptx2html_worker",
-    "build": "npm run build_main && npm run build_worker"
+    "build": "npm run build_index && npm run build_worker"
   },
   "repository": {
     "type": "git",
