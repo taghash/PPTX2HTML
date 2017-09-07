@@ -7,17 +7,11 @@ export default function tXml (S) {
   const openBracketCC = '<'.charCodeAt(0)
   const closeBracket = '>'
   const closeBracketCC = '>'.charCodeAt(0)
-  const minus = '-'
   const minusCC = '-'.charCodeAt(0)
-  const slash = '/'
   const slashCC = '/'.charCodeAt(0)
-  const exclamation = '!'
   const exclamationCC = '!'.charCodeAt(0)
-  const singleQuote = '\''
   const singleQuoteCC = '\''.charCodeAt(0)
-  const doubleQuote = '"'
   const doubleQuoteCC = '"'.charCodeAt(0)
-  const questionMark = '?'
   const questionMarkCC = '?'.charCodeAt(0)
 
   /**
@@ -64,11 +58,11 @@ export default function tXml (S) {
         pos++
         let startNamePos = pos
         for (; nameSpacer.indexOf(S[pos]) === -1; pos++) {}
-        const node_tagName = S.slice(startNamePos, pos)
+        const nodeTagName = S.slice(startNamePos, pos)
 
         // Parsing attributes
         let attrFound = false
-        let node_attributes = {}
+        let nodeAttributes = {}
         for (; S.charCodeAt(pos) !== closeBracketCC; pos++) {
           const c = S.charCodeAt(pos)
           if ((c > 64 && c < 91) || (c > 96 && c < 123)) {
@@ -87,24 +81,24 @@ export default function tXml (S) {
             pos = S.indexOf(startChar, startStringPos)
             const value = S.slice(startStringPos, pos)
             if (!attrFound) {
-              node_attributes = {}
+              nodeAttributes = {}
               attrFound = true
             }
-            node_attributes[name] = value
+            nodeAttributes[name] = value
           }
         }
 
         // Optional parsing of children
-        let node_children
+        let nodeChildren
         if (S.charCodeAt(pos - 1) !== slashCC) {
           pos++
-          node_children = parseChildren()
+          nodeChildren = parseChildren()
         }
 
         children.push({
-          'children': node_children,
-          'tagName': node_tagName,
-          'attrs': node_attributes
+          'children': nodeChildren,
+          'tagName': nodeTagName,
+          'attrs': nodeAttributes
         })
       } else {
         const startTextPos = pos
