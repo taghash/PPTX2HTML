@@ -8,44 +8,41 @@ import processPptx from './process_pptx'
 
 /**
  * @param {ArrayBuffer} pptx
- * @param {Element|String} element
+ * @param {Element|String} resultElement
  */
-const renderPptx = (pptx, element) => new Promise((resolve, reject) => {
-  const $result = $(element)
+const renderPptx = (pptx, resultElement, thumbElement) => new Promise((resolve, reject) => {
+  const $result = $(resultElement)
   // eslint-disable-next-line no-unused-vars
   let isDone = false
   $result.html('')
 
   // TODO: make sure nothing runs after isDone
-  const processMessage = (msg, postMessage) => {
+  const processMessage = (msg) => {
+    if (isDone) return
     switch (msg.type) {
       case 'slide':
         $result.append(msg.data)
         break
-      case 'processMsgQueue':
-        processMsgQueue(msg.data)
-        resolve()
-        break
       case 'pptx-thumb':
-        $('#pptx-thumb').attr('src', 'data:image/jpeg;base64,' + msg.data)
+        if (thumbElement) $(thumbElement).attr('src', 'data:image/jpeg;base64,' + msg.data)
         break
       case 'slideSize':
         break
       case 'globalCSS':
         $result.append('<style>' + msg.data + '</style>')
         break
-      case 'ExecutionTime':
+      case 'Done':
         isDone = true
-        postMessage({
-          'type': 'getMsgQueue'
-        })
+        processCharts(msg.data.charts)
+        resolve(msg.data.time)
         break
       case 'WARN':
-        console.warn('Worker: ', msg.data)
+        console.warn('Worker warning: ', msg.data)
         break
       case 'ERROR':
-        console.error('Worker: ', msg.data)
-        // TODO: reject
+        isDone = true
+        console.error('Worker error: ', msg.data)
+        reject(new Error(msg.data))
         break
       case 'DEBUG':
         // console.debug('Worker: ', msg.data);
@@ -58,8 +55,8 @@ const renderPptx = (pptx, element) => new Promise((resolve, reject) => {
   /*
   // Actual Web Worker - If you want to use this, switching worker's url to Blob is probably better
   const worker = new Worker('./dist/worker.js')
-  worker.addEventListener('message', event => processMessage(event.data, m => worker.postMessage(m)), false)
-  const stopWorker = setInterval(() => {
+  worker.addEventListener('message', event => processMessage(event.data), false)
+  const stopWorker = setInterval(() => { // Maybe this should be done in the message processing
     if (isDone) {
       worker.terminate()
       // console.log("worker terminated");
@@ -73,22 +70,23 @@ const renderPptx = (pptx, element) => new Promise((resolve, reject) => {
   }
   processPptx(
     func => { worker.postMessage = func },
-    msg => processMessage(msg, m => worker.postMessage(m))
+    processMessage
   )
   worker.postMessage({
     'type': 'processPPTX',
     'data': pptx
   })
-}).then(() => {
+}).then(time => {
   setNumericBullets($('.block'))
   setNumericBullets($('table td'))
+  return time
 })
 
 export default renderPptx
 
-function processMsgQueue (queue) {
+function processCharts (queue) {
   for (let i = 0; i < queue.length; i++) {
-    processSingleMsg(queue[i].data)
+    processSingleChart(queue[i].data)
   }
 }
 
@@ -109,7 +107,7 @@ function convertChartData (chartData) {
   return {data, xLabels, groupLabels}
 }
 
-function processSingleMsg (d) {
+function processSingleChart (d) {
   const chartID = d.chartID
   const chartType = d.chartType
   const chartData = d.chartData

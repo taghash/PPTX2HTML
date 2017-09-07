@@ -33,13 +33,12 @@ function escapeHtml (text) {
 }
 */
 export default function processPptx (setOnMessage = () => {}, postMessage) {
-  const MsgQueue = []
+  const charts = []
+  let chartID = 0
 
   let themeContent = null
 
   let slideLayoutClrOvride = ''
-
-  let chartID = 0
 
   const styleTable = {}
 
@@ -52,14 +51,11 @@ export default function processPptx (setOnMessage = () => {}, postMessage) {
           await processPPTX(e.data)
         } catch (e) {
           console.error('AN ERROR HAPPENED DURING processPPTX', e)
+          postMessage({
+            type: 'ERROR',
+            data: e.toString()
+          })
         }
-        break
-      }
-      case 'getMsgQueue': {
-        postMessage({
-          'type': 'processMsgQueue',
-          'data': MsgQueue
-        })
         break
       }
       default:
@@ -110,19 +106,16 @@ export default function processPptx (setOnMessage = () => {}, postMessage) {
 
     const dateAfter = new Date()
     postMessage({
-      'type': 'ExecutionTime',
-      'data': dateAfter - dateBefore
+      'type': 'Done',
+      'data': {
+        time: dateAfter - dateBefore,
+        charts
+      }
     })
   }
 
   async function readXmlFile (zip, filename) {
-    console.log('readXml 1')
-    const xmlFile = await zip.file(filename).async('text')
-    console.log('readXml 2')
-    const toto = tXml(xmlFile)
-    console.log('readXml 3', toto)
-
-    return toto
+    return tXml(await zip.file(filename).async('text'))
   }
 
   async function getContentTypes (zip) {
@@ -2059,7 +2052,7 @@ function processSpPrNode (node, warpObj) {
     }
 
     if (chartData !== null) {
-      MsgQueue.push(chartData)
+      charts.push(chartData)
     }
 
     chartID++
@@ -2840,7 +2833,7 @@ function getTextDirection (node, type, slideMasterTextStyles) {
                 }
               }
             } else {
-              console.log(bgFillTyp)
+              // console.log(bgFillTyp) // TODO
             }
           }
         }

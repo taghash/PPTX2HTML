@@ -10,7 +10,7 @@ $(document).ready(function () {
   // Read the file
   JSZipUtils.getBinaryContent('test.pptx', (err, content) => {
     if (err) return console.error(err)
-    renderPptx(content, '#result')
-      .then(() => console.log('ALL DONE !'))
+    renderPptx(content, '#result', '#pptx-thumb')
+      .then(time => console.log(`ALL DONE in ${time}ms`))
   })
 })
