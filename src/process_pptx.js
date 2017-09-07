@@ -1,7 +1,7 @@
 /* global btoa, JSZip */
 'use strict'
 
-import 'jszip/dist/jszip'
+import 'jszip/dist/jszip.min'
 import tXml from './txml'
 import * as colz from 'colz'
 
@@ -32,7 +32,7 @@ function escapeHtml (text) {
   return text.replace(/[&<>"']/g, m => map[m])
 }
 */
-export default function pptx2html (setOnMessage = () => {}, postMessage) {
+export default function processPptx (setOnMessage = () => {}, postMessage) {
   const MsgQueue = []
 
   let themeContent = null

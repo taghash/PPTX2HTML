@@ -43,7 +43,6 @@
     "jquery": "^3.2.1",
     "jszip": "^3.1.4",
     "jszip-utils": "0.0.2",
-    "lz-string": "^1.4.4",
     "dimple": "git+https://github.com/PMSI-AlignAlytics/dimple.git#2.3.0"
   }
 }

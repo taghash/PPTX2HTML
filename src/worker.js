@@ -1,9 +1,9 @@
 /* global self */
 'use strict'
 
-import pptx2html from './pptx2html'
+import processPptx from './process_pptx'
 
-pptx2html(
+processPptx(
   func => { self.onmessage = e => func(e.data) },
   msg => self.postMessage(msg)
 )
