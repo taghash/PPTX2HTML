@@ -1,15 +1,11 @@
 PPTX2HTML
 ==========
 [![MIT License][license-image]][license-url]
+[![npm version][npm-image]][npm-url]
 
 PPTX2HTML can convert MS-PPTX file to HTML by using pure javascript.  
 Support Chrome, Firefox, IE>=10 and Edge.  
 Here is the [Online DEMO] page.
-
-Version
-----
-
-0.2.7 (Beta Test)
 
 Support Objects
 ----
@@ -27,7 +23,6 @@ Support Objects
   * Bar chart
   * Line chart
   * Pie chart
-  * Scatter chart
 * Table
   * Location
   * Size
@@ -52,4 +47,6 @@ MIT
 
 [license-image]: http://img.shields.io/badge/license-MIT-blue.svg?style=flat
 [license-url]: LICENSE
+[npm-image]: https://img.shields.io/npm/v/pptx2html.svg?style=flat
+[npm-url]: https://www.npmjs.com/package/pptx2html
 [Online DEMO]: http://g21589.github.io/PPTX2HTML
