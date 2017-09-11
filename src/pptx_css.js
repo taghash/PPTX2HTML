@@ -1,16 +1,5 @@
-.hidden {
-	display: none;
-}
-
-pre {
+export default `section {
 	width: 100%;
-	height: 360px;
-	overflow: scroll;
-}
-
-section {
-	width: 100%;
-	/*max-width: 920px;*/
 	height: 690px;
 	position: relative;
 	border: 1px solid #333;
@@ -19,13 +8,12 @@ section {
 	border-radius: 10px;
 	box-shadow: 1px 1px 3px #AAA;
 	overflow: hidden;
-	/*transform: scale(0.85);*/
 }
 
 section div.block {
 	position: absolute;
-	top: 0px;
-	left: 0px;
+	top: 0;
+	left: 0;
 	width: 100%;
 }
 
@@ -47,7 +35,6 @@ section div.v-mid {
 section div.v-down {
 	justify-content: flex-end;
 }
-
 section div.h-left {
 	align-items: flex-start;
 	text-align: left;
@@ -60,7 +47,6 @@ section div.h-right {
 	align-items: flex-end;
 	text-align: right;
 }
-
 section div.up-left {
 	justify-content: flex-start;
 	align-items: flex-start;
@@ -106,7 +92,7 @@ section span.text-block {
 }
 
 li.slide {
-	margin: 10px 0px;
+	margin: 10px 0;
 	font-size: 18px;
 }
 
@@ -125,25 +111,4 @@ section table, section th, section td {
 section svg.drawing {
 	position: absolute;
 	overflow: visible;
-}
-
-.fileUpload {
-    position: relative;
-    overflow: hidden;
-}
-.fileUpload input.upload {
-    position: absolute;
-    top: 0;
-    right: 0;
-    margin: 0;
-    padding: 0;
-    font-size: 20px;
-    cursor: pointer;
-    opacity: 0;
-    filter: alpha(opacity=0);
-}
-
-#pptx-thumb {
-	min-width: 240px;
-	height: 180px;
-}
+}`

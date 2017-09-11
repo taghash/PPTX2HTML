@@ -1,10 +1,10 @@
 'use strict'
-/* global */
 
 import $ from 'jquery'
 import 'd3'
 import dimple from 'dimple'
 import processPptx from './process_pptx'
+import pptxStyle from './pptx_css'
 
 /**
  * @param {ArrayBuffer} pptx
@@ -16,6 +16,7 @@ const renderPptx = (pptx, resultElement, thumbElement) => {
   const $wrapper = $('<div class="pptx-wrapper"></div>')
   $result.html('')
   $result.append($wrapper)
+  $wrapper.append(`<style>${pptxStyle}</style>`)
   let isDone = false
 
   return new Promise((resolve, reject) => {
@@ -26,12 +27,12 @@ const renderPptx = (pptx, resultElement, thumbElement) => {
           $wrapper.append(msg.data)
           break
         case 'pptx-thumb':
-          if (thumbElement) $(thumbElement).attr('src', 'data:image/jpeg;base64,' + msg.data)
+          if (thumbElement) $(thumbElement).attr('src', `data:image/jpeg;base64,${msg.data}`)
           break
         case 'slideSize':
           break
         case 'globalCSS':
-          $wrapper.append('<style>' + msg.data + '</style>')
+          $wrapper.append(`<style>${msg.data}</style>`)
           break
         case 'Done':
           isDone = true
@@ -116,7 +117,7 @@ function convertChartData (chartData) {
       data.push({name: labelName, group: groupName, value: value.y})
     })
   })
-  console.log('TRANSFORMED DATA:', (data))
+  // console.log('TRANSFORMED DATA:', (data))
   return {data, xLabels, groupLabels}
 }
 
@@ -124,7 +125,7 @@ function processSingleChart (d) {
   const chartID = d.chartID
   const chartType = d.chartType
   const chartData = d.chartData
-  console.log(`WRITING GRAPH OF TYPE ${chartType} TO ID #${chartID}:`, chartData)
+  // console.log(`WRITING GRAPH OF TYPE ${chartType} TO ID #${chartID}:`, chartData)
 
   let data = []
 
@@ -133,7 +134,7 @@ function processSingleChart (d) {
       const {data: data_, xLabels, groupLabels} = convertChartData(chartData)
       data = data_
       const container = document.getElementById(chartID)
-      const svg = dimple.newSvg('#' + chartID, container.style.width, container.style.height)
+      const svg = dimple.newSvg(`#${chartID}`, container.style.width, container.style.height)
 
       // eslint-disable-next-line new-cap
       const myChart = new dimple.chart(svg, data)
@@ -176,7 +177,7 @@ function processSingleChart (d) {
       const {data: data_, groupLabels} = convertChartData(chartData)
       data = data_
       const container = document.getElementById(chartID)
-      const svg = dimple.newSvg('#' + chartID, container.style.width, container.style.height)
+      const svg = dimple.newSvg(`#${chartID}`, container.style.width, container.style.height)
 
       // eslint-disable-next-line new-cap
       const myChart = new dimple.chart(svg, data)

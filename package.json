@@ -1,13 +1,15 @@
 {
   "name": "pptx2html",
-  "version": "0.2.7",
+  "version": "0.3.0",
   "description": "PPTX2HTML",
-  "main": "index.js",
+  "main": "dist/main.js",
+  "module": "src/main.js",
   "directories": {
     "test": "test"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "build_main": "rollup -c -m -i src/main.js -o dist/main.js -f iife -n pptx2html_main",
     "build_index": "rollup -c -m -i src/index.js -o dist/index.js -f iife -n pptx2html_index",
     "build_worker": "rollup -c -m -i src/worker.js -o dist/worker.js -f iife -n pptx2html_worker",
     "build": "npm run build_index && npm run build_worker"

@@ -120,7 +120,7 @@ export default function processPptx (setOnMessage = () => {}, postMessage) {
 
   async function getContentTypes (zip) {
     const ContentTypesJson = await readXmlFile(zip, '[Content_Types].xml')
-    console.log('CONTENT TYPES JSON', ContentTypesJson)
+    // console.log('CONTENT TYPES JSON', ContentTypesJson)
     const subObj = ContentTypesJson['Types']['Override']
     const slidesLocArray = []
     const slideLayoutsLocArray = []
@@ -2679,7 +2679,7 @@ function getTextDirection (node, type, slideMasterTextStyles) {
           // a:srcRect
           // a:stretch => a:fillRect =>attrs (l:-17000, r:-17000)
           bgcolor = 'background-image: url(' + picFillBase64 + ');  z-index: ' + ordr + ';'
-          console.log(warpObj)
+          // console.log(warpObj)
         }
         // console.log("slideLayoutContent",bgcolor)
       } else if (bgRef !== undefined) {
@@ -3197,7 +3197,7 @@ function getTextDirection (node, type, slideMasterTextStyles) {
   }
 
   function extractChartData (serNode) {
-    console.log('PARSING PPTX CHART:', serNode)
+    // console.log('PARSING PPTX CHART:', serNode)
     const dataMat = []
 
     if (serNode === undefined) {
