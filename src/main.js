@@ -9,78 +9,91 @@ import processPptx from './process_pptx'
 /**
  * @param {ArrayBuffer} pptx
  * @param {Element|String} resultElement
+ * @param {Element|String} thumbElement
  */
-const renderPptx = (pptx, resultElement, thumbElement) => new Promise((resolve, reject) => {
+const renderPptx = (pptx, resultElement, thumbElement) => {
   const $result = $(resultElement)
-  // eslint-disable-next-line no-unused-vars
-  let isDone = false
+  const $wrapper = $('<div class="pptx-wrapper"></div>')
   $result.html('')
+  $result.append($wrapper)
+  let isDone = false
 
-  // TODO: make sure nothing runs after isDone
-  const processMessage = (msg) => {
-    if (isDone) return
-    switch (msg.type) {
-      case 'slide':
-        $result.append(msg.data)
-        break
-      case 'pptx-thumb':
-        if (thumbElement) $(thumbElement).attr('src', 'data:image/jpeg;base64,' + msg.data)
-        break
-      case 'slideSize':
-        break
-      case 'globalCSS':
-        $result.append('<style>' + msg.data + '</style>')
-        break
-      case 'Done':
-        isDone = true
-        processCharts(msg.data.charts)
-        resolve(msg.data.time)
-        break
-      case 'WARN':
-        console.warn('Worker warning: ', msg.data)
-        break
-      case 'ERROR':
-        isDone = true
-        console.error('Worker error: ', msg.data)
-        reject(new Error(msg.data))
-        break
-      case 'DEBUG':
-        // console.debug('Worker: ', msg.data);
-        break
-      case 'INFO':
-      default:
-      // console.info('Worker: ', msg.data);
+  return new Promise((resolve, reject) => {
+    const processMessage = (msg) => {
+      if (isDone) return
+      switch (msg.type) {
+        case 'slide':
+          $wrapper.append(msg.data)
+          break
+        case 'pptx-thumb':
+          if (thumbElement) $(thumbElement).attr('src', 'data:image/jpeg;base64,' + msg.data)
+          break
+        case 'slideSize':
+          break
+        case 'globalCSS':
+          $wrapper.append('<style>' + msg.data + '</style>')
+          break
+        case 'Done':
+          isDone = true
+          processCharts(msg.data.charts)
+          resolve(msg.data.time)
+          break
+        case 'WARN':
+          console.warn('PPTX processing warning: ', msg.data)
+          break
+        case 'ERROR':
+          isDone = true
+          console.error('PPTX processing error: ', msg.data)
+          reject(new Error(msg.data))
+          break
+        case 'DEBUG':
+          // console.debug('Worker: ', msg.data);
+          break
+        case 'INFO':
+        default:
+        // console.info('Worker: ', msg.data);
+      }
     }
-  }
-  /*
-  // Actual Web Worker - If you want to use this, switching worker's url to Blob is probably better
-  const worker = new Worker('./dist/worker.js')
-  worker.addEventListener('message', event => processMessage(event.data), false)
-  const stopWorker = setInterval(() => { // Maybe this should be done in the message processing
-    if (isDone) {
-      worker.terminate()
-      // console.log("worker terminated");
-      clearInterval(stopWorker)
+    /*
+    // Actual Web Worker - If you want to use this, switching worker's url to Blob is probably better
+    const worker = new Worker('./dist/worker.js')
+    worker.addEventListener('message', event => processMessage(event.data), false)
+    const stopWorker = setInterval(() => { // Maybe this should be done in the message processing
+      if (isDone) {
+        worker.terminate()
+        // console.log("worker terminated");
+        clearInterval(stopWorker)
+      }
+    }, 500)
+    */
+    const worker = { // shim worker
+      postMessage: () => {},
+      terminate: () => {}
     }
-  }, 500)
-  */
-  const worker = { // shim worker
-    postMessage: () => {},
-    terminate: () => {}
-  }
-  processPptx(
-    func => { worker.postMessage = func },
-    processMessage
-  )
-  worker.postMessage({
-    'type': 'processPPTX',
-    'data': pptx
+    processPptx(
+      func => { worker.postMessage = func },
+      processMessage
+    )
+    worker.postMessage({
+      'type': 'processPPTX',
+      'data': pptx
+    })
+  }).then(time => {
+    const resize = () => {
+      const slidesWidth = Math.max(...Array.from($wrapper.children('section')).map(s => s.offsetWidth))
+      const wrapperWidth = $wrapper[0].offsetWidth
+      $wrapper.css({
+        'transform': `scale(${wrapperWidth / slidesWidth})`,
+        'transform-origin': 'top left'
+      })
+    }
+    resize()
+    window.addEventListener('resize', resize)
+    setNumericBullets($('.block'))
+    setNumericBullets($('table td'))
+    return time
   })
-}).then(time => {
-  setNumericBullets($('.block'))
-  setNumericBullets($('table td'))
-  return time
-})
+}
 
 export default renderPptx
 
