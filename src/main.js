@@ -9,7 +9,7 @@ import pptxStyle from './pptx_css'
 /**
  * @param {ArrayBuffer} pptx
  * @param {Element|String} resultElement
- * @param {Element|String} thumbElement
+ * @param {Element|String} [thumbElement]
  */
 const renderPptx = (pptx, resultElement, thumbElement) => {
   const $result = $(resultElement)

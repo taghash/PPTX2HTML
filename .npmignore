@@ -6,4 +6,5 @@ DevNote.md
 index.html
 rollup.config.js
 test.pptx
-dist/index.js
+dist/
+!dist/pptx2html.*
