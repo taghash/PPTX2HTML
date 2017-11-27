@@ -6,18 +6,6 @@ import babel from 'rollup-plugin-babel'
 
 export default {
   plugins: [
-    babel({
-      exclude: 'node_modules/**',
-      plugins: [
-        'syntax-async-functions',
-        'transform-async-to-generator',
-        'transform-runtime'
-      ],
-      presets: ['es2015-rollup'],
-      runtimeHelpers: true
-    }),
-    nodeGlobals(),
-    builtins(),
     nodeResolve({
       jsnext: true,
       main: true
@@ -25,6 +13,13 @@ export default {
     commonjs({
       include: 'node_modules/**',
       sourceMap: true
-    })
+    }),
+    babel({
+      presets: [
+        ['@babel/env', {useBuiltins: 'usage', modules: false}]
+      ]
+    }),
+    nodeGlobals(),
+    builtins()
   ]
 }
