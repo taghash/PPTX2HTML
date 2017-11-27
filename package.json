@@ -15,8 +15,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "gulp build",
-    "build_worker": "rollup -c -m -i src/worker.js -o dist/worker.js -f iife -n pptx2html_worker",
-    "prepublish": "npm run build"
+    "minify": "gulp minify",
+    "prepare": "npm run minify"
   },
   "repository": {
     "type": "git",
