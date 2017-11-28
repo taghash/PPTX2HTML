@@ -1,7 +1,5 @@
 'use strict'
 
-const builtins = require('rollup-plugin-node-builtins')
-const nodeGlobals = require('rollup-plugin-node-globals')
 const babel = require('rollup-plugin-babel')
 const buffer = require('vinyl-buffer')
 const commonJs = require('rollup-plugin-commonjs')
@@ -51,9 +49,7 @@ const buildClientJsFile = (filePath, fileName, destPath) =>
             }
           ]
         ]
-      }),
-      nodeGlobals(),
-      builtins()
+      })
     ],
     sourcemap: true
   })
