@@ -65,7 +65,20 @@ gulp.task('build', ['clean'], () =>
   merge(jsFiles.map(({path, name}) => buildClientJsFile(path, name, destDir.path())))
 )
 
-gulp.task('minify', ['build'], () =>
+gulp.task('build-full', ['build'], () => destDir.write(
+  'pptx2html.full.js',
+  [
+    './node_modules/jquery/dist/jquery.min.js',
+    './node_modules/jszip/dist/jszip.min.js',
+    './node_modules/d3/build/d3.min.js',
+    './node_modules/dimple/dist/dimple.latest.min.js',
+    destDir.path('pptx2html.js')
+  ]
+    .map(filePath => jetpack.read(filePath))
+    .join(';'))
+)
+
+gulp.task('minify', ['build-full'], () =>
   gulp.src('dist/**/*.js')
     .pipe(rename(p => { p.extname = '.min.js' }))
     .pipe(buffer())
