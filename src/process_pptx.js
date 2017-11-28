@@ -1,7 +1,6 @@
 /* global btoa, JSZip */
 'use strict'
 
-import 'jszip/dist/jszip.min'
 import tXml from './txml'
 import * as colz from 'colz'
 
