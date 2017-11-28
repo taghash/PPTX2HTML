@@ -33,7 +33,7 @@ const buildClientJsFile = (filePath, fileName, destPath) =>
     name: 'pptx2html',
     plugins: [
       babel({
-        exclude: 'node_modules/**',
+        exclude: 'node_modules/core-js/**',
         presets: [
           ['@babel/preset-env',
             {
