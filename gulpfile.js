@@ -32,6 +32,17 @@ const buildClientJsFile = (filePath, fileName, destPath) =>
     format: 'iife',
     name: 'pptx2html',
     plugins: [
+      babel({
+        exclude: 'node_modules/**',
+        presets: [
+          ['@babel/preset-env',
+            {
+              useBuiltIns: 'usage',
+              modules: false
+            }
+          ]
+        ]
+      }),
       nodeResolve({
         module: true,
         main: true
@@ -39,16 +50,6 @@ const buildClientJsFile = (filePath, fileName, destPath) =>
       commonJs({
         include: 'node_modules/**',
         sourceMap: true
-      }),
-      babel({
-        presets: [
-          ['@babel/env',
-            {
-              useBuiltins: 'usage',
-              modules: false
-            }
-          ]
-        ]
       })
     ],
     sourcemap: true

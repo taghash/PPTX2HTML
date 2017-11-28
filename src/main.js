@@ -1,6 +1,6 @@
+/* global $ */
 'use strict'
 
-import $ from 'jquery'
 import 'd3'
 import dimple from 'dimple'
 import processPptx from './process_pptx'
