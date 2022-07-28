@@ -22,7 +22,7 @@ const jsFiles = [
   {path: 'src/worker.js', name: 'pptx2html_worker.js'}
 ]
 
-gulp.task('clean', () =>
+gulp.task('clean', async () =>
   destDir.dir('.', {empty: true})
 )
 
@@ -61,11 +61,11 @@ const buildClientJsFile = (filePath, fileName, destPath) =>
     .pipe(gulp.dest(destPath))
     .on('error', console.error.bind(console))
 
-gulp.task('build', ['clean'], () =>
+gulp.task('build', gulp.series(['clean']), async () =>
   merge(jsFiles.map(({path, name}) => buildClientJsFile(path, name, destDir.path())))
 )
 
-gulp.task('build-full', ['build'], () => destDir.write(
+gulp.task('build-full', gulp.series(['build']), async () => destDir.write(
   'pptx2html.full.js',
   [
     './node_modules/jquery/dist/jquery.min.js',
@@ -78,7 +78,7 @@ gulp.task('build-full', ['build'], () => destDir.write(
     .join(';'))
 )
 
-gulp.task('minify', ['build-full'], () =>
+gulp.task('minify', gulp.series(['build-full']), async () =>
   gulp.src('dist/**/*.js')
     .pipe(rename(p => { p.extname = '.min.js' }))
     .pipe(buffer())

@@ -16,7 +16,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "gulp build-full",
     "minify": "gulp minify",
-    "prepare": "npm run minify"
+    "prepare": "npm run minify",
+    "preinstall": "npm install --package-lock-only --ignore-scripts && npx npm-force-resolutions"
   },
   "repository": {
     "type": "git",
@@ -34,7 +35,7 @@
     "@babel/preset-env": "^7.0.0-beta.32",
     "core-js": "^2.5.1",
     "fs-jetpack": "^1.2.0",
-    "gulp": "^3.9.1",
+    "gulp": "^4.0.2",
     "gulp-rename": "^1.2.2",
     "gulp-sourcemaps": "^2.6.1",
     "gulp-uglify": "^3.0.0",
@@ -55,6 +56,11 @@
     "d3": "^4.12.0",
     "dimple": "git+https://github.com/PMSI-AlignAlytics/dimple.git#2.3.0",
     "jquery": "^3.2.1",
-    "jszip": "^3.1.5"
+    "jszip": "^3.1.5",
+    "natives": "^1.1.6"
+  },
+  "resolutions": {
+    "graceful-fs": "^4.2.10",
+    "vinyl-fs": "^2.0.0"
   }
 }
