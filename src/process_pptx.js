@@ -1,7 +1,7 @@
 /* global btoa, JSZip */
 'use strict'
 
-import tXml from './txml'
+import tXml from './tXml'
 import * as colz from 'colz'
 
 function base64ArrayBuffer (arrayBuff) {
